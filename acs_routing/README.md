@@ -1,40 +1,55 @@
 # acs_routing
 
-Weekly route planning for home visits by community health agents (ACS).
+Weekly route planning for community health agent home visits using real family data and a self-hosted OSRM foot-routing service.
 
-## Structure
+## Real-data flow
 
-- `acs_routing/config.py`: immutable configuration, realistic typical/peak risk assumptions, periodic fixed-day settings, and optional geographic prefiltering.
-- `acs_routing/models.py`: data models.
-- `acs_routing/families_loader.py`: validated family CSV loading and risk classification.
-- `acs_routing/risk.py`: Coelho-Savassi scoring.
-- `acs_routing/reward.py`: family reward functions.
-- `acs_routing/travel_matrix.py`: asymmetric travel times and OSRM.
-- `acs_routing/route_utils.py`: route evaluation and deltas.
-- `acs_routing/construction.py`, `local_search.py`, `grasp.py`: parallel five-day construction and per-route optimization with optional geographic prefiltering and reusable route prefixes.
-- `acs_routing/weekly_planner.py`: five-day planning through one parallel `solve_week` call.
-- `acs_routing/state.py`, `reports.py`: JSON persistence, completed-visit updates, and weekly reports.
-- `acs_routing/synthetic_instance.py`, `main.py`: typical/peak synthetic data, periodic fixed schedules, and CLI support for synthetic or self-hosted OSRM inputs.
-
-## Run
+1. Prepare a family CSV with `id`, `lat`, `lon`, all sentinel columns, optional `fixed_day`, `fixed_period_weeks`, `fixed_phase_weeks`, and `last_visit_date`.
+2. Start a self-hosted OSRM instance with the foot profile.
+3. Run the CLI with the family file, UBS coordinates, OSRM URL, and optional state/completion files.
 
 ```powershell
+cd C:\Users\revol\OneDrive\Desktop\mTSP-health-router\acs_routing
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[test]"
-python -m pytest -q
-python -m acs_routing.main --synthetic 30
-```
-
-For a real travel matrix, provide a UBS-first CSV with `id,lat,lon` and a self-hosted OSRM URL:
-
-```powershell
+pip install -e ".[osrm]"
 python -m acs_routing.main --families-file families.csv --ubs -23.55,-46.63 --osrm-url http://localhost:5000 --state-file state.json --completed-file completed.csv
 ```
 
-The OSRM client expects the `foot` profile. A benchmark is available with:
+The completed-visit CSV must contain `id,visit_date`. Configuration can be supplied as JSON or TOML:
 
 ```powershell
-python -m scripts.benchmark
+python -m acs_routing.main --config config.toml --families-file families.csv --ubs -23.55,-46.63 --osrm-url http://localhost:5000
+```
+
+## OSRM
+
+Use a self-hosted OSRM instance with the foot profile:
+
+```powershell
+osrm-extract -p /opt/foot.lua region.osm.pbf
+osrm-partition region.osrm
+osrm-customize region.osrm
+osrm-routed --algorithm mld --max-table-size 1000 region.osrm
+```
+
+Validate a configured server with:
+
+```powershell
 python -m scripts.validate_osrm --osrm-url http://localhost:5000 --coords-file coordinates.csv
 ```
+
+## Modules
+
+- `config.py`: real configuration and JSON/TOML loading.
+- `families_loader.py`: validated family CSV loading and risk classification.
+- `risk.py`, `reward.py`: risk and reward calculations.
+- `travel_matrix.py`: asymmetric travel storage and OSRM table client.
+- `construction.py`, `local_search.py`, `grasp.py`: parallel weekly construction and route refinement.
+- `weekly_planner.py`: weekly orchestration.
+- `state.py`, `reports.py`: JSON state and operational reports.
+- `main.py`: real-data CLI entry point.
+
+## Open items
+
+Real risk/service-time validation, live OSRM validation, multiple agents, inter-day local search, and a database layer remain future work. See `IMPLEMENTATION_REPORT.md` for the current implementation state.

@@ -19,7 +19,6 @@ def plan_week(
     config: Config,
     family_index: dict[int, int],
     excluded_ids: set[int] | None = None,
-    metrics: dict[str, object] | None = None,
 ) -> WeekState:
     """Plan five routes concurrently without repeating a family."""
     config.require_runtime_values()
@@ -42,7 +41,6 @@ def plan_week(
         rng,
         family_index,
         nearest_nodes,
-        metrics,
     )
     state = WeekState(list(families), routes, monday_date)
     # TODO: add an inter-day local-search extension point.

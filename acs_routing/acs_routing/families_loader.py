@@ -31,6 +31,7 @@ def load_families(
     """Load and validate families from a CSV file."""
     errors: list[str] = []
     families: list[Family] = []
+    seen_ids: set[int] = set()
     with Path(path).open(newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         columns = set(reader.fieldnames or [])
@@ -50,6 +51,11 @@ def load_families(
                 family_id = int(row["id"])
                 latitude = float(row["lat"])
                 longitude = float(row["lon"])
+                if family_id in seen_ids:
+                    raise ValueError("duplicate family id")
+                if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+                    raise ValueError("coordinates are outside valid ranges")
+                seen_ids.add(family_id)
                 fixed_day = int(row["fixed_day"]) if row.get("fixed_day") else None
                 fixed_period = (
                     int(row["fixed_period_weeks"])
