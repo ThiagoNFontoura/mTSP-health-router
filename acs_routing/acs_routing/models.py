@@ -17,6 +17,8 @@ class Family:
     risk_class: str
     fixed_day: int | None
     last_visit_date: date | None
+    fixed_period_weeks: int | None = None
+    fixed_phase_weeks: int | None = None
 
 
 @dataclass

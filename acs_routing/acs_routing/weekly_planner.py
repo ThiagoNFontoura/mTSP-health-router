@@ -6,7 +6,7 @@ from datetime import date
 import numpy as np
 
 from .config import Config
-from .grasp import solve_day
+from .grasp import solve_week
 from .models import Family, Route, WeekState, build_family_index
 from .reward import reward_matrix
 from .travel_matrix import TravelMatrix
@@ -19,39 +19,31 @@ def plan_week(
     config: Config,
     family_index: dict[int, int],
     excluded_ids: set[int] | None = None,
+    metrics: dict[str, object] | None = None,
 ) -> WeekState:
-    """Plan five daily routes without repeating a family."""
+    """Plan five routes concurrently without repeating a family."""
     config.require_runtime_values()
     values = reward_matrix(families, monday_date, config)
+    if excluded_ids:
+        family_ids = np.asarray([family.id for family in families])
+        values[:, np.isin(family_ids, list(excluded_ids))] = 0.0
     rng = np.random.default_rng(config.seed)
-    family_ids = np.asarray([family.id for family in families])
-    used = np.isin(family_ids, list(excluded_ids or set()))
     nearest_nodes = (
         matrix.precompute_nearest_nodes(config.neighbor_count)
         if config.use_neighbor_prefilter
         else None
     )
-    routes: list[Route] = []
-    for day_index in range(config.week_days):
-        day_rewards = {
-            family.id: float(values[day_index, family_index])
-            for family_index, family in enumerate(families)
-        }
-        route = solve_day(
-            families,
-            day_index + 1,
-            day_rewards,
-            matrix,
-            config,
-            rng,
-            used_mask=used,
-            family_index=family_index,
-            nearest_nodes=nearest_nodes,
-        )
-        routes.append(route)
-        used |= np.isin(
-            family_ids, route.sequence[1:-1]
-        )
+    routes = solve_week(
+        families,
+        values,
+        matrix,
+        config,
+        monday_date,
+        rng,
+        family_index,
+        nearest_nodes,
+        metrics,
+    )
     state = WeekState(list(families), routes, monday_date)
     # TODO: add an inter-day local-search extension point.
     return state

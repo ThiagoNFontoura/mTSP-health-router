@@ -51,8 +51,26 @@ def load_families(
                 latitude = float(row["lat"])
                 longitude = float(row["lon"])
                 fixed_day = int(row["fixed_day"]) if row.get("fixed_day") else None
+                fixed_period = (
+                    int(row["fixed_period_weeks"])
+                    if row.get("fixed_period_weeks")
+                    else None
+                )
+                fixed_phase = (
+                    int(row["fixed_phase_weeks"])
+                    if row.get("fixed_phase_weeks")
+                    else None
+                )
                 if fixed_day is not None and fixed_day not in range(1, 6):
                     raise ValueError("fixed_day must be between 1 and 5")
+                if fixed_day is not None and (fixed_period is None or fixed_phase is None):
+                    raise ValueError(
+                        "fixed_day requires fixed_period_weeks and fixed_phase_weeks"
+                    )
+                if fixed_period is not None and fixed_period <= 0:
+                    raise ValueError("fixed_period_weeks must be positive")
+                if fixed_phase is not None and fixed_period is not None and not 0 <= fixed_phase < fixed_period:
+                    raise ValueError("fixed_phase_weeks must be within the fixed period")
                 last_visit_date = (
                     date.fromisoformat(row["last_visit_date"])
                     if row.get("last_visit_date")
@@ -81,6 +99,8 @@ def load_families(
                         classify(compute_score(sentinels)),
                         fixed_day,
                         last_visit_date,
+                        fixed_period,
+                        fixed_phase,
                     )
                 )
             except (KeyError, TypeError, ValueError) as error:

@@ -30,7 +30,7 @@ def test_state_json_round_trip_and_visit_updates(tmp_path):
 
 def test_weekly_report_values():
     config = Config(target_interval={"R0": 30}, n_iter=1, alpha=0.3, seed=1)
-    families = [Family(10, 0, 0, {}, "R0", 1, date(2025, 12, 6))]
+    families = [Family(10, 0, 0, {}, "R0", 1, date(2025, 12, 5))]
     state = WeekState(families, [Route([0, 10, 0], 20.0, 100.0)], date(2026, 1, 5))
     report = weekly_report(families, state, config)
     assert report["demand"] == 1
@@ -38,6 +38,21 @@ def test_weekly_report_values():
     assert report["ideal_day_percentage"] == 100.0
     assert report["delay_distribution"] == {0: 1}
     assert report["fixed_day_served"] == 1
+    assert report["families_visited_per_day"] == [1]
+    assert report["overdue_families_by_weekday"] == [1]
+
+
+def test_report_warns_when_active_fixed_day_capacity_is_insufficient():
+    config = Config(target_interval={"R0": 30}, n_iter=1, alpha=0.3, seed=1)
+    families = [
+        Family(index, 0, 0, {}, "R0", 1, None, 1, 0)
+        for index in range(1, 20)
+    ]
+    state = WeekState(families, [Route([0, 1, 0], 20.0, 100.0)] + [Route([0, 0], 0.0, 0.0) for _ in range(4)], date(2026, 1, 5))
+    report = weekly_report(families, state, config)
+    assert report["active_fixed_families_by_day"][0] == len(families)
+    assert report["active_fixed_infeasible_by_day"][0] == len(families) - 1
+    assert report["active_fixed_warning"] is True
 
 
 def test_completed_first_week_families_are_excluded_from_second_plan():

@@ -1,8 +1,11 @@
-from datetime import date
+from datetime import date, timedelta
+
+import numpy as np
 
 from acs_routing.config import Config
 from acs_routing.models import Family
-from acs_routing.reward import delay_bonus, family_reward, one_sided_gaussian
+from acs_routing.reward import delay_bonus, family_reward, is_fixed_active, one_sided_gaussian
+from acs_routing.synthetic_instance import generate_instance
 
 
 def config() -> Config:
@@ -53,3 +56,29 @@ def test_flexible_risk_classes_have_the_same_effective_window():
 def test_flexible_r0_peak_reward_is_not_zeroed():
     family = Family(1, 0, 0, {}, "R0", None, date(2025, 12, 8))
     assert family_reward(family, 3, date(2026, 1, 5), config()) > 0
+
+
+def test_monthly_fixed_family_is_active_once_in_four_weeks():
+    monday = date(2026, 1, 5)
+    family = Family(1, 0, 0, {}, "R0", 1, None, 4, monday.toordinal() // 7 % 4)
+    active = [
+        is_fixed_active(family, monday + timedelta(days=7 * offset))
+        for offset in range(4)
+    ]
+    assert sum(active) == 1
+
+
+def test_inactive_fixed_family_uses_flexible_reward():
+    family = Family(1, 0, 0, {}, "R0", 1, date(2025, 12, 8), 4, 0)
+    monday = date(2026, 1, 5)
+    if is_fixed_active(family, monday):
+        family.fixed_phase_weeks = 1
+    assert not is_fixed_active(family, monday)
+    assert family_reward(family, 1, monday, config()) < config().a_fixed
+
+
+def test_synthetic_monthly_active_fixed_count_is_close_to_expected():
+    settings = config()
+    families, _ = generate_instance(900, np.random.default_rng(42), fixed_fraction=0.10)
+    active = sum(is_fixed_active(family, date(2026, 1, 5)) for family in families)
+    assert abs(active - 900 * settings.fixed_fraction / settings.fixed_period_weeks_default) <= 10

@@ -26,6 +26,18 @@ def delay_bonus(days_late: int, config: Config = DEFAULT_CONFIG) -> float:
     )
 
 
+def is_fixed_active(family: Family, monday_date: date) -> bool:
+    """Return whether a fixed-day family is active in the planning week."""
+    if family.fixed_day is None:
+        return False
+    if family.fixed_period_weeks is None:
+        return True
+    if family.fixed_period_weeks <= 0 or family.fixed_phase_weeks is None:
+        raise ValueError("fixed period and phase must be positive and present")
+    week_index = monday_date.toordinal() // 7
+    return (week_index - family.fixed_phase_weeks) % family.fixed_period_weeks == 0
+
+
 def _days_late(family: Family, monday_date: date, config: Config) -> int:
     """Return overdue days at the start of the planning week."""
     if family.last_visit_date is None:
@@ -57,7 +69,7 @@ def family_reward(
     """Return one family's reward for a one-based planning day."""
     weight = risk_weight(family.risk_class, config)
     bonus = delay_bonus(_days_late(family, monday_date, config), config)
-    if family.fixed_day is not None:
+    if is_fixed_active(family, monday_date):
         value = config.a_fixed * weight if day == family.fixed_day else 0.0
         maximum_reward = config.a_fixed * weight * bonus
     else:

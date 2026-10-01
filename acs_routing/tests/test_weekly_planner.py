@@ -7,6 +7,8 @@ from acs_routing.models import Family
 from acs_routing.models import build_family_index
 from acs_routing.travel_matrix import TravelMatrix
 from acs_routing.weekly_planner import plan_week
+from acs_routing.reports import weekly_report
+from acs_routing.synthetic_instance import demo_config, generate_instance
 
 
 def test_week_has_no_repeated_family():
@@ -49,3 +51,16 @@ def test_planner_maps_noncontiguous_family_ids_to_matrix_nodes():
             for source, target in zip(route.sequence, route.sequence[1:])
         ) + sum(service_times[family_id] for family_id in route.sequence[1:-1])
         assert route.total_time == manual_time
+
+
+def test_overdue_families_are_not_concentrated_on_one_weekday():
+    config = demo_config()
+    config = Config(**{**config.__dict__, "n_iter": 1, "alpha": 1.0, "use_neighbor_prefilter": False})
+    families, matrix = generate_instance(
+        20, np.random.default_rng(config.seed), fixed_fraction=0.0
+    )
+    state = plan_week(families, matrix, config.initial_date, config, build_family_index(families))
+    report = weekly_report(families, state, config)
+    overdue = report["overdue_families_by_weekday"]
+    total_overdue = sum(overdue)
+    assert total_overdue == 0 or max(overdue) <= total_overdue * 0.4

@@ -37,6 +37,10 @@ class TravelMatrix:
         start = source * self.size
         return self._seconds[start : start + self.size].astype(np.float64) / 60.0
 
+    def column_minutes(self, destination: int) -> np.ndarray:
+        """Return one destination's travel-time column in minutes."""
+        return self._seconds[destination :: self.size].astype(np.float64) / 60.0
+
     def to_ubs_minutes(self) -> np.ndarray:
         """Return travel times from every node to the UBS in minutes."""
         return self._seconds[:: self.size].astype(np.float64) / 60.0

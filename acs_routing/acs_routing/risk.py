@@ -1,6 +1,9 @@
 """Coelho-Savassi household risk scoring."""
 
 from collections.abc import Mapping
+from functools import lru_cache
+
+import numpy as np
 
 from .config import Config, DEFAULT_CONFIG
 
@@ -51,3 +54,33 @@ def risk_weight(risk_class: str, config: Config = DEFAULT_CONFIG) -> int:
 def service_time(risk_class: str, config: Config = DEFAULT_CONFIG) -> int:
     """Return the configured service duration in minutes."""
     return config.service_time[risk_class]
+
+
+@lru_cache(maxsize=None)
+def _matching_sentinel_masks(risk_class: str) -> tuple[int, ...]:
+    """Return all bit masks that classify into one risk class."""
+    names = tuple(SENTINEL_POINTS)
+    matching_masks: list[int] = []
+    for mask in range(2 ** len(names)):
+        sentinels = {
+            name: bool(mask & (1 << position))
+            for position, name in enumerate(names)
+        }
+        if classify(compute_score(sentinels)) == risk_class:
+            matching_masks.append(mask)
+    return tuple(matching_masks)
+
+
+def sentinels_for_class(
+    risk_class: str, rng: np.random.Generator, config: Config = DEFAULT_CONFIG
+) -> dict[str, bool]:
+    """Sample sentinel combinations until the requested risk class is reached."""
+    names = tuple(SENTINEL_POINTS)
+    matching_masks = _matching_sentinel_masks(risk_class)
+    if not matching_masks:
+        raise RuntimeError(f"Could not generate a sentinel combination for {risk_class}")
+    mask = matching_masks[int(rng.integers(0, len(matching_masks)))]
+    return {
+        name: bool(mask & (1 << position))
+        for position, name in enumerate(names)
+    }

@@ -78,6 +78,7 @@ def main() -> None:
     """Generate a synthetic week and print its routes and report."""
     args = build_parser().parse_args()
     config = demo_config()
+    monday = config.initial_date or date.today()
     history = None
     if args.state_file:
         try:
@@ -108,7 +109,7 @@ def main() -> None:
         families, matrix = generate_instance(
             args.synthetic,
             np.random.default_rng(config.seed),
-            initial_last_visit_date=config.initial_last_visit_date,
+            config=config,
         )
     if history is not None:
         families = history.families
@@ -120,12 +121,12 @@ def main() -> None:
             update_completed_visits(families, family_ids, visit_date)
         completed_ids = {
             family_id
-            for family_ids in completed_by_date.values()
+            for visit_date, family_ids in completed_by_date.items()
+            if visit_date >= monday
             for family_id in family_ids
         }
     else:
         completed_ids = set()
-    monday = config.initial_date or date.today()
     state = plan_week(
         families,
         matrix,

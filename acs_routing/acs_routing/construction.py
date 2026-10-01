@@ -1,107 +1,142 @@
-"""GRASP construction for one planning day."""
+"""Parallel GRASP construction for a complete planning week."""
 
 from collections.abc import Mapping, Sequence
+from datetime import date
 
 import numpy as np
 
-from .config import Config, DEFAULT_CONFIG
-from .models import Family, Route, build_family_index, node_index
+from .config import Config
+from .models import Family, Route, node_index
 from .risk import service_time
 from .route_utils import total_time
+from .reward import is_fixed_active
 from .travel_matrix import TravelMatrix
 
 
-def construct_day(
+def _score_vector(
+    rewards: np.ndarray,
+    position_node: int,
+    matrix: TravelMatrix,
+    matrix_nodes: np.ndarray,
+    service_values: np.ndarray,
+) -> np.ndarray:
+    """Score every family from one current matrix position."""
+    scores = np.zeros_like(rewards, dtype=np.float64)
+    denominator = matrix.row_minutes(position_node)[matrix_nodes] + service_values
+    np.divide(rewards, denominator, out=scores, where=denominator > 0)
+    return scores
+
+
+def construct_week(
     families: Sequence[Family],
-    day: int,
-    day_rewards: Mapping[int, float],
+    reward_values: np.ndarray,
     matrix: TravelMatrix,
     config: Config,
+    monday_date: date,
     rng: np.random.Generator,
     family_index: Mapping[int, int],
-    used_ids: set[int] | None = None,
-    used_mask: np.ndarray | None = None,
     nearest_nodes: list[np.ndarray] | None = None,
-) -> Route:
-    """Construct one feasible route using greedy and RCL choices."""
-    route = [0, 0]
+    stats: dict[str, int] | None = None,
+) -> list[Route]:
+    """Construct five routes concurrently with one global used mask."""
+    if reward_values.shape != (config.week_days, len(families)):
+        raise ValueError("reward_values must have shape (week_days, family_count)")
     family_ids = np.asarray([family.id for family in families], dtype=np.int64)
-    index = family_index
-    matrix_nodes = np.asarray([node_index(family_id, index) for family_id in family_ids])
+    matrix_nodes = np.asarray([node_index(family_id, family_index) for family_id in family_ids])
     service_values = np.asarray(
         [service_time(family.risk_class, config) for family in families],
         dtype=np.float64,
     )
-    reward_values = np.asarray(
-        [day_rewards.get(family_id, 0.0) for family_id in family_ids],
-        dtype=np.float64,
+    service_times = {family.id: service_time(family.risk_class, config) for family in families}
+    fixed_days = np.asarray(
+        [
+            family.fixed_day if is_fixed_active(family, monday_date) else 0
+            for family in families
+        ],
+        dtype=np.int64,
     )
-    family_by_id = {family.id: family for family in families}
+    routes = [[0, 0] for _ in range(config.week_days)]
+    positions = np.zeros(config.week_days, dtype=np.int64)
+    current_times = np.zeros(config.week_days, dtype=np.float64)
+    closed = np.zeros(config.week_days, dtype=bool)
     used = np.zeros(len(families), dtype=bool)
-    if used_mask is not None:
-        if len(used_mask) != len(families):
-            raise ValueError("used_mask must match the family sequence length")
-        used |= used_mask
-    if used_ids:
-        used |= np.isin(family_ids, list(used_ids))
-    nearest_nodes = nearest_nodes or (
-        matrix.precompute_nearest_nodes(config.neighbor_count)
-        if config.use_neighbor_prefilter
-        else None
-    )
-    while True:
-        current = route[-2]
-        route_mask = np.isin(family_ids, route)
-        eligible = (~used) & (~route_mask) & (reward_values > 0.0)
-        if nearest_nodes is not None:
-            geographic = np.zeros(len(families), dtype=bool)
-            geographic_matrix_nodes = nearest_nodes[node_index(current, index)]
-            geographic |= np.isin(matrix_nodes, geographic_matrix_nodes)
-            geographic |= np.asarray(
-                [family.fixed_day == day for family in families],
-                dtype=bool,
+    scores = np.vstack(
+        [
+            _score_vector(
+                reward_values[day], 0, matrix, matrix_nodes, service_values
             )
-            eligible &= geographic
-        candidate_indices = np.flatnonzero(eligible)
-        if candidate_indices.size == 0:
-            break
-        current_time = total_time(
-            route,
-            matrix,
-            {family.id: service_time(family.risk_class, config) for family in families},
-            index,
-        )
-        current_node = node_index(current, index)
-        travel_from_current = matrix.row_minutes(current_node)[matrix_nodes[candidate_indices]]
-        travel_to_ubs = matrix.to_ubs_minutes()[matrix_nodes[candidate_indices]]
-        candidate_services = service_values[candidate_indices]
-        candidate_rewards = reward_values[candidate_indices]
-        move_time = travel_from_current + candidate_services + travel_to_ubs
-        feasible_mask = current_time + move_time - matrix.d(current_node, 0) <= config.shift_minutes
-        candidate_indices = candidate_indices[feasible_mask]
-        if candidate_indices.size == 0:
-            break
-        travel_from_current = matrix.row_minutes(current_node)[matrix_nodes[candidate_indices]]
-        scores = reward_values[candidate_indices] / (
-            travel_from_current + service_values[candidate_indices]
-        )
-        fixed_mask = np.asarray(
-            [family_by_id[int(family_ids[index])].fixed_day == day for index in candidate_indices],
-            dtype=bool,
-        )
-        if np.any(fixed_mask):
-            selected_index = candidate_indices[np.flatnonzero(fixed_mask)[np.argmax(scores[fixed_mask])]]
+            for day in range(config.week_days)
+        ]
+    )
+    if stats is not None:
+        stats["score_recomputations"] = stats.get("score_recomputations", 0) + config.week_days
+    if config.use_neighbor_prefilter and nearest_nodes is None:
+        nearest_nodes = matrix.precompute_nearest_nodes(config.neighbor_count)
+    while not np.all(closed):
+        pairs: list[tuple[int, int, float, bool]] = []
+        for day in np.flatnonzero(~closed):
+            position_node = int(positions[day])
+            eligible = (~used) & (reward_values[day] > 0.0)
+            if nearest_nodes is not None:
+                geographic = np.isin(matrix_nodes, nearest_nodes[position_node])
+                geographic |= fixed_days == day + 1
+                eligible &= geographic
+            candidate_indices = np.flatnonzero(eligible)
+            if candidate_indices.size:
+                current_time = current_times[day]
+                from_position = matrix.row_minutes(position_node)[matrix_nodes[candidate_indices]]
+                to_ubs = matrix.to_ubs_minutes()[matrix_nodes[candidate_indices]]
+                feasible = current_time + from_position + service_values[candidate_indices] + to_ubs <= config.shift_minutes
+                candidate_indices = candidate_indices[feasible]
+            if stats is not None:
+                stats["candidate_pairs_evaluated"] = stats.get("candidate_pairs_evaluated", 0) + int(candidate_indices.size)
+            if candidate_indices.size == 0:
+                closed[day] = True
+                continue
+            for family_index_value in candidate_indices:
+                pairs.append(
+                    (
+                        int(day),
+                        int(family_index_value),
+                        float(scores[day, family_index_value]),
+                        bool(fixed_days[family_index_value] == day + 1),
+                    )
+                )
+        if not pairs:
+            continue
+        fixed_pairs = [pair for pair in pairs if pair[3]]
+        if fixed_pairs:
+            selected = max(fixed_pairs, key=lambda pair: pair[2])
+            if stats is not None:
+                stats["greedy_fixed_picks"] = stats.get("greedy_fixed_picks", 0) + 1
         else:
-            maximum = float(np.max(scores))
-            minimum = float(np.min(scores))
-            threshold = maximum - (config.alpha or 0.0) * (maximum - minimum)
-            rcl = candidate_indices[scores >= threshold]
-            selected_index = rcl[int(rng.integers(0, len(rcl)))]
-        selected_id = int(family_ids[selected_index])
-        route.insert(-1, selected_id)
-        used[selected_index] = True
-    service_times = {
-        family.id: service_time(family.risk_class, config) for family in families
-    }
-    rewards = sum(day_rewards.get(node, 0.0) for node in route[1:-1])
-    return Route(route, total_time(route, matrix, service_times, index), rewards)
+            pair_scores = np.asarray([pair[2] for pair in pairs], dtype=np.float64)
+            threshold = float(np.max(pair_scores)) - config.alpha * (
+                float(np.max(pair_scores)) - float(np.min(pair_scores))
+            )
+            rcl = [pair for pair in pairs if pair[2] >= threshold]
+            selected = rcl[int(rng.integers(0, len(rcl)))]
+            if stats is not None:
+                stats["rcl_picks"] = stats.get("rcl_picks", 0) + 1
+        day, family_position, _, _ = selected
+        family_id = int(family_ids[family_position])
+        routes[day].insert(-1, family_id)
+        used[family_position] = True
+        current_times[day] = total_time(routes[day], matrix, service_times, family_index)
+        positions[day] = matrix_nodes[family_position]
+        scores[day] = _score_vector(
+            reward_values[day], int(positions[day]), matrix, matrix_nodes, service_values
+        )
+        if stats is not None:
+            stats["score_recomputations"] = stats.get("score_recomputations", 0) + 1
+    return [
+        Route(
+            sequence=route,
+            total_time=total_time(route, matrix, service_times, family_index),
+            total_reward=sum(
+                reward_values[day, family_ids.tolist().index(family_id)]
+                for family_id in route[1:-1]
+            ),
+        )
+        for day, route in enumerate(routes)
+    ]
