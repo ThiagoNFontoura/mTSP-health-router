@@ -110,7 +110,6 @@ def refine_route(
     family_index: dict[int, int],
     nearest_nodes: list[np.ndarray] | None = None,
     excluded_ids: set[int] | None = None,
-    metrics: dict[str, object] | None = None,
 ) -> Route:
     """Apply improving 2-Opt, insertion, and replacement swaps."""
     family_by_id = {family.id: family for family in families}
@@ -127,8 +126,6 @@ def refine_route(
         best: tuple[str, tuple[int, ...], float, float] | None = None
         for left in range(1, len(route_ids) - 2):
             for right in range(left + 1, len(route_ids) - 1):
-                if metrics is not None:
-                    metrics["two_opt_candidates"] = int(metrics.get("two_opt_candidates", 0)) + 1
                 delta = two_opt_delta(
                     route_ids, left, right, matrix, forward, backward, index
                 )
@@ -143,8 +140,6 @@ def refine_route(
             route.total_time = total_time(route.sequence, matrix, service_times, index)
             forward, backward = rebuild_prefixes(route.sequence, matrix, index)
             changed = True
-            if metrics is not None:
-                metrics["two_opt_moves_accepted"] = int(metrics.get("two_opt_moves_accepted", 0)) + 1
             continue
 
         unused = [
@@ -167,8 +162,6 @@ def refine_route(
             )
             candidate_positions = [unused.index(candidate) for candidate in nearby]
             if candidate_positions:
-                if metrics is not None:
-                    metrics["insertion_candidates"] = int(metrics.get("insertion_candidates", 0)) + len(nearby)
                 candidate_rewards = unused_rewards[candidate_positions]
                 candidate_service_values = unused_services[candidate_positions]
                 deltas = _insertion_deltas(
@@ -191,8 +184,6 @@ def refine_route(
                     forward, backward = rebuild_prefixes(route.sequence, matrix, index)
                     route.total_reward += rewards[candidate_id]
                     changed = True
-                    if metrics is not None:
-                        metrics["insertion_moves_accepted"] = int(metrics.get("insertion_moves_accepted", 0)) + 1
                     break
             if changed:
                 break
@@ -212,8 +203,6 @@ def refine_route(
             if is_fixed_active(family_by_id[removed_id], monday_date):
                 continue
             candidate_rewards = np.asarray([rewards.get(candidate, 0.0) for candidate in replacement_ids])
-            if metrics is not None:
-                metrics["replacement_candidates"] = int(metrics.get("replacement_candidates", 0)) + len(replacement_ids)
             candidate_services = np.asarray([service_times[candidate] for candidate in replacement_ids])
             deltas = _replacement_deltas(
                 route_ids[position - 1],
@@ -237,8 +226,6 @@ def refine_route(
                 forward, backward = rebuild_prefixes(route.sequence, matrix, index)
                 route.total_reward += gains[selected]
                 changed = True
-                if metrics is not None:
-                    metrics["replacement_moves_accepted"] = int(metrics.get("replacement_moves_accepted", 0)) + 1
                 break
             if changed:
                 break

@@ -11,12 +11,6 @@ dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
 osrm = ["requests>=2.31"]
-test = ["pytest>=7.4"]
-
-[tool.pytest.ini_options]
-pythonpath = ["."]
-testpaths = ["tests"]
-markers = ["integration: requires a configured external OSRM service"]
 
 [tool.setuptools.packages.find]
 include = ["acs_routing*"]

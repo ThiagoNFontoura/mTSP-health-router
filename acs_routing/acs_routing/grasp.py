@@ -21,7 +21,6 @@ def solve_week(
     rng: np.random.Generator,
     family_index: dict[int, int],
     nearest_nodes: list[np.ndarray] | None = None,
-    metrics: dict[str, object] | None = None,
 ) -> list[Route]:
     """Return the best refined five-route week found."""
     best_routes: list[Route] | None = None
@@ -29,7 +28,6 @@ def solve_week(
     for _ in range(config.n_iter):
         sub_seed = int(rng.integers(0, np.iinfo(np.int64).max))
         sub_rng = np.random.default_rng(sub_seed)
-        construction_stats: dict[str, int] = {}
         routes = construct_week(
             families,
             reward_values,
@@ -39,11 +37,7 @@ def solve_week(
             sub_rng,
             family_index,
             nearest_nodes,
-            construction_stats,
         )
-        if metrics is not None:
-            for key, value in construction_stats.items():
-                metrics[key] = int(metrics.get(key, 0)) + value
         used_ids = {
             family_id
             for route in routes
@@ -66,7 +60,6 @@ def solve_week(
                 family_index,
                 nearest_nodes,
                 excluded_ids,
-                metrics,
             )
             used_ids = {
                 family_id
@@ -74,9 +67,6 @@ def solve_week(
                 for family_id in candidate.sequence[1:-1]
             }
         total_reward = sum(route.total_reward for route in routes)
-        if metrics is not None:
-            iteration_rewards = metrics.setdefault("iteration_rewards", [])
-            iteration_rewards.append(total_reward)
         if total_reward > best_reward:
             best_reward = total_reward
             best_routes = routes

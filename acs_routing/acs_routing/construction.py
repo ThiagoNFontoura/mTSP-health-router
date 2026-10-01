@@ -36,7 +36,6 @@ def construct_week(
     rng: np.random.Generator,
     family_index: Mapping[int, int],
     nearest_nodes: list[np.ndarray] | None = None,
-    stats: dict[str, int] | None = None,
 ) -> list[Route]:
     """Construct five routes concurrently with one global used mask."""
     if reward_values.shape != (config.week_days, len(families)):
@@ -68,8 +67,6 @@ def construct_week(
             for day in range(config.week_days)
         ]
     )
-    if stats is not None:
-        stats["score_recomputations"] = stats.get("score_recomputations", 0) + config.week_days
     if config.use_neighbor_prefilter and nearest_nodes is None:
         nearest_nodes = matrix.precompute_nearest_nodes(config.neighbor_count)
     while not np.all(closed):
@@ -88,8 +85,6 @@ def construct_week(
                 to_ubs = matrix.to_ubs_minutes()[matrix_nodes[candidate_indices]]
                 feasible = current_time + from_position + service_values[candidate_indices] + to_ubs <= config.shift_minutes
                 candidate_indices = candidate_indices[feasible]
-            if stats is not None:
-                stats["candidate_pairs_evaluated"] = stats.get("candidate_pairs_evaluated", 0) + int(candidate_indices.size)
             if candidate_indices.size == 0:
                 closed[day] = True
                 continue
@@ -107,8 +102,6 @@ def construct_week(
         fixed_pairs = [pair for pair in pairs if pair[3]]
         if fixed_pairs:
             selected = max(fixed_pairs, key=lambda pair: pair[2])
-            if stats is not None:
-                stats["greedy_fixed_picks"] = stats.get("greedy_fixed_picks", 0) + 1
         else:
             pair_scores = np.asarray([pair[2] for pair in pairs], dtype=np.float64)
             threshold = float(np.max(pair_scores)) - config.alpha * (
@@ -116,8 +109,6 @@ def construct_week(
             )
             rcl = [pair for pair in pairs if pair[2] >= threshold]
             selected = rcl[int(rng.integers(0, len(rcl)))]
-            if stats is not None:
-                stats["rcl_picks"] = stats.get("rcl_picks", 0) + 1
         day, family_position, _, _ = selected
         family_id = int(family_ids[family_position])
         routes[day].insert(-1, family_id)
@@ -127,8 +118,6 @@ def construct_week(
         scores[day] = _score_vector(
             reward_values[day], int(positions[day]), matrix, matrix_nodes, service_values
         )
-        if stats is not None:
-            stats["score_recomputations"] = stats.get("score_recomputations", 0) + 1
     return [
         Route(
             sequence=route,
