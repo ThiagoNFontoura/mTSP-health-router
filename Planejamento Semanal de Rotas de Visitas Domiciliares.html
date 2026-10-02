@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Planejamento Semanal de Rotas de Visitas Domiciliares</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1b2430;--mut:#5b6675;--ac:#0b7a75;--card:#fff;--bd:#dde2e8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10161d;--fg:#e8edf2;--mut:#9aa6b5;--ac:#3cc4bb;--card:#18212b;--bd:#2a3644}}
+:root[data-theme="dark"]{--bg:#10161d;--fg:#e8edf2;--mut:#9aa6b5;--ac:#3cc4bb;--card:#18212b;--bd:#2a3644}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box}
+body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
+main{flex:1;min-height:0;position:relative}
+section{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;padding:4vh 7vw;overflow-y:auto}
+section.on{display:flex}
+h1{font-size:clamp(1.6rem,4.2vw,3rem);margin:0 0 .6em;line-height:1.15}
+h2{font-size:clamp(1.4rem,3.4vw,2.4rem);margin:0 0 .7em;color:var(--ac)}
+p,li{font-size:clamp(1rem,1.9vw,1.4rem);line-height:1.5;color:var(--fg)}
+.mut{color:var(--mut)}
+ul{padding-left:1.2em;margin:0}li{margin-bottom:.5em}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px}
+.card b{display:block;color:var(--ac);margin-bottom:6px;font-size:clamp(1rem,1.8vw,1.3rem)}
+.card span{font-size:clamp(.9rem,1.6vw,1.15rem);color:var(--mut);line-height:1.45}
+.flow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.flow .card{flex:1 1 150px;text-align:center;padding:14px 10px}
+.arr{color:var(--ac);font-size:1.5rem}
+nav{display:flex;align-items:center;justify-content:space-between;padding:10px 7vw;border-top:1px solid var(--bd)}
+button{background:var(--ac);color:var(--bg);border:0;border-radius:8px;padding:10px 18px;font-size:1rem;cursor:pointer}
+button:disabled{opacity:.35}
+#c{color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+<section class="on">
+<p class="mut">UFRGS · Instituto de Informática · Projeto em Ciência e Inovação · 2026</p>
+<h1>Planejamento semanal de rotas de visitas domiciliares na Atenção Primária</h1>
+<p>Uma abordagem GRASP com priorização por risco familiar</p>
+<p class="mut">Leonardo Greco Fin · Manuela Dalmonte · Thiago Noll da Fontoura</p>
+</section>
+
+<section>
+<h2>O problema</h2>
+<ul>
+<li>Agentes comunitários de saúde (ACS) acompanham periodicamente as famílias do território.</li>
+<li>O turno é limitado: é preciso decidir <b>quais</b> famílias visitar, em <b>que dia</b> e em <b>que ordem</b>.</li>
+<li>Hoje o planejamento é manual ou usa sistemas que não integram risco, prazo e deslocamento.</li>
+</ul>
+<p class="mut" style="margin-top:1em">Pergunta: é possível planejar rotas semanais com mais visitas no dia ideal e menos famílias de alto risco atrasadas que a simples ordem de vencimento?</p>
+</section>
+
+<section>
+<h2>Justificativa e impacto</h2>
+<div class="grid">
+<div class="card"><b>Prático</b><span>Troca o planejamento manual por um semanal, reprodutível, que incorpora risco, prazo e deslocamento.</span></div>
+<div class="card"><b>Social e ético</b><span>Critério explícito e auditável, que reduz o risco de esquecer famílias de maior risco. Os pesos entre classes são hipóteses a validar com a unidade.</span></div>
+<div class="card"><b>Ambiental</b><span>Pequeno, pois o deslocamento é majoritariamente a pé. Não se afirma redução de emissões.</span></div>
+<div class="card"><b>Computação</b><span>Centenas de famílias, cinco dias e limite de tempo tornam inviável a avaliação manual. Daí o uso de heurísticas.</span></div>
+</div>
+</section>
+
+<section>
+<h2>Objetivo</h2>
+<p>Modelar e implementar um protótipo de planejamento semanal de rotas que combine <b>risco da família</b>, <b>momento ideal da visita</b> e <b>tempo real de deslocamento</b>.</p>
+<div class="grid" style="margin-top:1em">
+<div class="card"><b>Risco</b><span>Escala de Coelho-Savassi (R0 a R3)</span></div>
+<div class="card"><b>Prazo</b><span>Recompensa máxima na data ideal, com bônus para atrasadas</span></div>
+<div class="card"><b>Deslocamento</b><span>Tempos a pé obtidos de servidor OSRM</span></div>
+<div class="card"><b>Ciclo semanal</b><span>Banco de dados com histórico de visitas</span></div>
+</div>
+</section>
+
+<section>
+<h2>Escala de Risco de Coelho-Savassi</h2>
+<p>A escala soma pontos de sentinelas de risco de cada família e a classifica:</p>
+<div class="grid" style="margin-top:1em">
+<div class="card"><b>R0</b><span>menos de 5 pontos</span></div>
+<div class="card"><b>R1</b><span>5 a 6 pontos</span></div>
+<div class="card"><b>R2</b><span>7 a 8 pontos</span></div>
+<div class="card"><b>R3</b><span>9 pontos ou mais</span></div>
+</div>
+<p class="mut" style="margin-top:1em">A classe define a prioridade e o intervalo ideal entre visitas, valores tratados como hipóteses de trabalho.</p>
+</section>
+
+<section>
+<h2>Literatura e estado da técnica</h2>
+<ul>
+<li><b>Orienteering e Team Orienteering</b> (Chao et al.; Vansteenwegen et al.): escolher o subconjunto de pontos que maximiza a recompensa dentro de um limite de tempo. É a base do modelo.</li>
+<li><b>Home Health Care Routing and Scheduling</b> (Çınar et al.; Mankowska et al.): metaheurísticas que equilibram deslocamento e urgência.</li>
+<li><b>GRASP</b> (Feo e Resende): construção gulosa randomizada seguida de busca local, repetida várias vezes.</li>
+<li><b>Mercado:</b> planejamento manual ou softwares de VRP, que reduzem distância sem considerar o risco do paciente.</li>
+</ul>
+<p class="mut" style="margin-top:1em">Contribuição: unir essas duas realidades, adaptadas aos recursos da Atenção Primária.</p>
+</section>
+
+<section>
+<h2>Modelagem e algoritmo</h2>
+<p>O problema é tratado como <b>orienteering</b>: escolher, dentro do tempo do turno, o conjunto de visitas que maximiza a recompensa total.</p>
+<div class="flow" style="margin-top:1em">
+<div class="card">Recompensa por família e dia</div><span class="arr">→</span>
+<div class="card">Construção gulosa randomizada (GRASP), 5 dias em paralelo</div><span class="arr">→</span>
+<div class="card">Busca local: 2-Opt, inserção e troca</div><span class="arr">→</span>
+<div class="card">Rotas da semana</div>
+</div>
+<p class="mut" style="margin-top:1em">Stack: Python, NumPy, requests (OSRM) e PostgreSQL.</p>
+</section>
+
+<section>
+<h2>A recompensa de cada visita</h2>
+<p>Para cada família e cada dia da semana calcula-se uma recompensa:</p>
+<ul>
+<li><b>Máxima</b> na data ideal da visita e decrescente quando se afasta dela.</li>
+<li>Cresce conforme a data ideal se aproxima e permanece no máximo depois dela, então o atraso nunca reduz a urgência.</li>
+<li><b>Bônus</b> para famílias atrasadas.</li>
+<li><b>Prioridade</b> para visitas de dia fixo.</li>
+<li>O peso de cada classe de risco define como o tempo do agente é distribuído.</li>
+</ul>
+</section>
+
+<section>
+<h2>Dados e ambiente</h2>
+<div class="grid">
+<div class="card"><b>Cadastro (CSV)</b><span>Identificador, coordenadas, sentinelas de risco, dia fixo e data da última visita.</span></div>
+<div class="card"><b>Dados sintéticos</b><span>De 100 a 900 famílias, com distribuição de risco inspirada na de Coelho e Savassi. Dados reais de uma unidade, se disponíveis.</span></div>
+<div class="card"><b>Mapa</b><span>OpenStreetMap em servidor OSRM próprio, com perfil de pedestre.</span></div>
+<div class="card"><b>Ferramentas</b><span>Python, NumPy, requests e PostgreSQL.</span></div>
+</div>
+</section>
+
+<section>
+<h2>Validação</h2>
+<ul>
+<li>Análise de complexidade da construção e da busca local.</li>
+<li>Tempo de execução com 100, 300, 600 e 900 famílias (dados sintéticos).</li>
+<li>Casos extremos: dias fixos acima da capacidade, todas atrasadas, nenhuma viável.</li>
+<li>Demonstração com dados reais, conferindo as rotas no mapa.</li>
+<li>Comparação com uma linha de base simples: tempo, recompensa total e % de visitas no dia ideal.</li>
+</ul>
+</section>
+
+<section>
+<h2>Resultados esperados</h2>
+<div class="grid">
+<div class="card"><b>Protótipo</b><span>Validado em laboratório, com script reprodutível</span></div>
+<div class="card"><b>Relatórios</b><span>Demanda e capacidade, distribuição de atrasos, alerta de dias fixos que não couberam</span></div>
+<div class="card"><b>Comparação</b><span>Proposta vs. linha de base, reportando apenas ganhos medidos</span></div>
+</div>
+<p class="mut" style="margin-top:1em">Impacto: critério de priorização explícito e auditável, com pesos e tempos a validar junto à unidade de saúde.</p>
+</section>
+
+<section>
+<h2>Cronograma</h2>
+<div class="grid">
+<div class="card"><b>11/09 – 17/09</b><span>Revisão bibliográfica</span></div>
+<div class="card"><b>18/09 – 24/09</b><span>Proposta de solução integrando a teoria</span></div>
+<div class="card"><b>25/09 – 01/10</b><span>Implementação do algoritmo e início do artigo</span></div>
+<div class="card"><b>02/10 – 09/10</b><span>Finalização, testes e construção do artigo</span></div>
+</div>
+</section>
+
+<section>
+<h2>Referências principais</h2>
+<ul style="font-size:.9em">
+<li>COELHO; SAVASSI. Escala de Risco Familiar como instrumento de priorização das Visitas Domiciliares. Rev. Bras. Med. Fam. Comunidade, 2004.</li>
+<li>ÇINAR; SALMAN; BOZKAYA. Prioritized single nurse routing and scheduling for home healthcare services. EJOR, 2021.</li>
+<li>MANKOWSKA; MEISEL; BIERWIRTH. The home health care routing and scheduling problem with interdependent services. Health Care Manag. Sci., 2014.</li>
+<li>CHAO; GOLDEN; WASIL. The team orienteering problem. EJOR, 1996.</li>
+<li>VANSTEENWEGEN; SOUFFRIAU; VAN OUDHEUSDEN. The orienteering problem: a survey. EJOR, 2011.</li>
+<li>FEO; RESENDE. Greedy randomized adaptive search procedures. J. Global Optim., 1995.</li>
+</ul>
+</section>
+</main>
+<nav><button id="p">← Anterior</button><span id="c"></span><button id="n">Próximo →</button></nav>
+<script>
+var s=document.querySelectorAll("section"),i=0,p=document.getElementById("p"),n=document.getElementById("n"),c=document.getElementById("c");
+function go(k){i=Math.max(0,Math.min(s.length-1,k));s.forEach(function(e,j){e.classList.toggle("on",j===i)});c.textContent=(i+1)+" / "+s.length;p.disabled=i===0;n.disabled=i===s.length-1}
+p.onclick=function(){go(i-1)};n.onclick=function(){go(i+1)};
+document.addEventListener("keydown",function(e){if(e.key==="ArrowRight"||e.key===" ")go(i+1);if(e.key==="ArrowLeft")go(i-1)});
+go(0);
+</script>
+</body>
+</html>
