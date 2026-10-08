@@ -76,7 +76,7 @@ def make_family(row_id: int) -> dict[str, str | int]:
 
 
 def main() -> None:
-    random.seed(7)
+    random.seed()
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     fieldnames = [
