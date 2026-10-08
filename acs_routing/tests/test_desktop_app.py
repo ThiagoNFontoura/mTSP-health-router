@@ -52,8 +52,8 @@ class DesktopAppTest(unittest.TestCase):
             )
             output = format_plan(families, state, 2)
 
-        self.assertIn("FUNCIONÁRIO 1", output)
-        self.assertIn("FUNCIONÁRIO 2", output)
+        self.assertIn("AGENTE 1", output)
+        self.assertIn("AGENTE 2", output)
         self.assertNotIn("endereço", output)
         self.assertIn("prioridade R", output)
         self.assertIn("Dia 5 — nenhuma visita programada", output)

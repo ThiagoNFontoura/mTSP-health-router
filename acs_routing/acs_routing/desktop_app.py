@@ -152,7 +152,7 @@ def format_plan(
     state: WeekState,
     agents_per_day: int,
 ) -> str:
-    """Create a readable list with every employee and all five weekdays."""
+    """Create a readable list with every health agent and all five weekdays."""
     family_by_id = {family.id: family for family in families}
     lines = [
         f"Famílias carregadas: {len(families)}",
@@ -168,7 +168,7 @@ def format_plan(
     ]
     visited: set[int] = set()
     for agent in range(1, agents_per_day + 1):
-        lines.append(f"FUNCIONÁRIO {agent}")
+        lines.append(f"AGENTE {agent}")
         routes_by_day = {
             route.day: route
             for route in state.routes

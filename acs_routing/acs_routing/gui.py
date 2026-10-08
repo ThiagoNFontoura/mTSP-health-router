@@ -12,7 +12,7 @@ from .desktop_app import format_plan, process_csv
 
 
 class RoutingApp:
-    """Present CSV selection, employee count, and formatted route results."""
+    """Present CSV selection, agent count, and formatted route results."""
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -40,14 +40,14 @@ class RoutingApp:
             row=0, column=2, padx=(8, 0), pady=6
         )
 
-        ttk.Label(frame, text="Funcionários por dia:").grid(
+        ttk.Label(frame, text="Agentes de saúde por dia:").grid(
             row=1, column=0, sticky="w", padx=(0, 8), pady=6
         )
         ttk.Spinbox(frame, from_=1, to=100, textvariable=self.agents, width=8).grid(
             row=1, column=1, sticky="w", pady=6
         )
 
-        ttk.Label(frame, text="Tempo ativo por funcionário (minutos):").grid(
+        ttk.Label(frame, text="Tempo ativo por agente (minutos):").grid(
             row=2, column=0, sticky="w", padx=(0, 8), pady=6
         )
         ttk.Spinbox(
@@ -96,7 +96,7 @@ class RoutingApp:
         except ValueError:
             messagebox.showwarning(
                 "Valor inválido",
-                "Informe números maiores que zero para funcionários e tempo ativo.",
+                "Informe números maiores que zero para agentes e tempo ativo.",
             )
             return
         self.process_button.configure(state=tk.DISABLED)

@@ -2,6 +2,8 @@
 
 import argparse
 import csv
+import subprocess
+import sys
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
@@ -22,6 +24,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ubs", required=True, help="UBS coordinates as latitude,longitude")
     parser.add_argument("--osrm-url", required=True, help="self-hosted OSRM base URL")
     parser.add_argument("--state-file", help="JSON history file")
+    parser.add_argument(
+        "--render-output",
+        help="also render the saved state as an OSRM HTML map",
+    )
     parser.add_argument("--completed-file", help="CSV with id,visit_date")
     parser.add_argument("--config", help="JSON or TOML configuration file")
     parser.add_argument(
@@ -107,6 +113,27 @@ def main() -> None:
     )
     if args.state_file:
         save_state(state, args.state_file)
+    if args.render_output:
+        if not args.state_file:
+            raise ValueError("--render-output requires --state-file")
+        renderer = Path(__file__).resolve().parents[1] / "scripts" / "render_routes_map.py"
+        subprocess.run(
+            [
+                sys.executable,
+                str(renderer),
+                "--state-file",
+                args.state_file,
+                "--ubs",
+                args.ubs,
+                "--osrm-url",
+                args.osrm_url,
+                "--osrm-profile",
+                config.osrm_profile,
+                "--output",
+                args.render_output,
+            ],
+            check=True,
+        )
     for route_index, route in enumerate(state.routes):
         day = route.day or (route_index // config.agents_per_day + 1)
         agent = route.agent or (route_index % config.agents_per_day + 1)
