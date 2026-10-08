@@ -257,12 +257,6 @@ O validador verifica restrições rígidas, totais persistidos e o limite de opt
 - Relatório operacional semanal e validadores independentes (`validate_osrm`, `validate_plan`).
 - Testes de regressão para alocação multiagente, unicidade de famílias, limites individuais de turno, relatórios e comportamento padrão de um agente.
 
-### Ainda não validado
-
-- O caminho de integração com o OSRM e o validador live **ainda não foram executados contra um servidor real**, pois não havia serviço OSRM configurado durante a implementação.
-- Distribuições reais de risco, valores das sentinelas, tempos de atendimento e intervalos-alvo precisam ser validados com dados da unidade de saúde.
-- Os valores da classificação Coelho-Savassi precisam ser confirmados com a referência de 2004.
-
 ### Trabalho futuro (não implementado)
 
 - Busca local **entre dias**.
