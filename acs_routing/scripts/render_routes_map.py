@@ -91,18 +91,15 @@ def render_map_html(
     ubs: tuple[float, float],
     *,
     margin_fraction: float = 0.08,
-    osrm_url: str | None = None,
+    osrm_url: str,
     osrm_profile: str = "foot",
     osrm_timeout: float = 30.0,
 ) -> str:
-    """Render routes to a standalone HTML document with an SVG map.
-
-    Coordinates are projected linearly for a local operational map. The
-    geographic limits come from the leftmost/rightmost and topmost/bottommost
-    visit locations plus the UBS, then receive a visual margin.
-    """
+    """Render OSRM road geometries to a standalone HTML document."""
     if not 0 < margin_fraction < 1:
         raise ValueError("margin_fraction deve estar entre 0 e 1")
+    if not osrm_url.strip():
+        raise ValueError("a URL do OSRM é obrigatória para renderizar as rotas")
 
     coordinates = list(families.values()) + [ubs]
     if not coordinates:
@@ -138,21 +135,14 @@ def render_map_html(
     map_routes: list[dict[str, Any]] = []
     for route_index, route in enumerate(routes):
         sequence = [int(family_id) for family_id in route.get("sequence", [])]
-        if osrm_url:
-            geographic_points = _fetch_osrm_geometry(
-                sequence,
-                families,
-                ubs,
-                osrm_url,
-                osrm_profile,
-                osrm_timeout,
-            )
-        else:
-            geographic_points = [
-                ubs if family_id == 0 else families[family_id]
-                for family_id in sequence
-                if family_id == 0 or family_id in families
-            ]
+        geographic_points = _fetch_osrm_geometry(
+            sequence,
+            families,
+            ubs,
+            osrm_url,
+            osrm_profile,
+            osrm_timeout,
+        )
         route_points = [point(latitude, longitude) for latitude, longitude in geographic_points]
         if len(route_points) < 2:
             continue
@@ -328,7 +318,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", default="routes_map.html", help="HTML de saída")
     parser.add_argument(
         "--osrm-url",
-        help="URL base do OSRM; usa a geometria viária real em vez de linhas retas",
+        required=True,
+        help="URL base do OSRM usado para obter a geometria viária real",
     )
     parser.add_argument(
         "--osrm-profile",

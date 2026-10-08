@@ -47,6 +47,21 @@ python -m venv .venv
 pip install -e ".[osrm]"
 ```
 
+#### Interface gráfica
+
+No Windows, dê duplo clique em [`GUI.bat`](GUI.bat), na raiz do
+projeto. O script usa o `.venv` local quando ele existe e, caso contrário, usa
+o Python disponível no `PATH`.
+
+Selecione o CSV, informe a quantidade de agentes de saúde e processe o arquivo.
+O planejamento do CSV é gerado mesmo se o OSRM estiver desligado. Depois,
+clique em **Abrir mapa das rotas** para consultar o OSRM e obter as geometrias
+viárias reais. A GUI usa o serviço público
+`https://router.project-osrm.org` para o mapa; nenhum mapa com linhas retas é
+criado. O mapa é salvo em
+`%USERPROFILE%\.acs-routing\gui\routes.html` e precisa de internet para
+carregar a biblioteca Leaflet e o mapa-base Esri no navegador.
+
 ```powershell
 python -m acs_routing.main `
   --families-file families.csv `
