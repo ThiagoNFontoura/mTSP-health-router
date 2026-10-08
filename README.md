@@ -1,6 +1,6 @@
 # ACS-ROUTING
 
-Ferramenta de linha de comando para o **planejamento semanal de visitas domiciliares** de agentes comunitários de saúde (ACS). A partir de uma UBS, o ACS-ROUTING monta rotas de segunda a sexta-feira priorizando famílias por **risco (Coelho-Savassi)**, periodicidade, atraso e restrições de dia fixo, usando **tempos reais de deslocamento a pé** obtidos via [OSRM](https://project-osrm.org/).
+Ferramenta de linha de comando para o **planejamento semanal de visitas domiciliares** de agentes comunitários de saúde (ACS). A partir de uma UBS, o ACS-ROUTING monta rotas de segunda a sexta-feira priorizando famílias por **risco (Coelho-Savassi)**, periodicidade, atraso e restrições de dia fixo, usando **tempos reais de deslocamento a pé** obtidos via [OSRM](https://project-osrm.org/). O pacote também inclui uma [interface gráfica local](#interface-gráfica-local).
 
 ## Sumário
 
@@ -8,6 +8,7 @@ Ferramenta de linha de comando para o **planejamento semanal de visitas domicili
 - [Requisitos](#requisitos)
 - [Instalação](#instalação)
 - [Uso](#uso)
+- [Interface gráfica local](#interface-gráfica-local)
 - [Dados de entrada](#dados-de-entrada)
 - [Como o algoritmo funciona](#como-o-algoritmo-funciona)
 - [Configuração](#configuração)
