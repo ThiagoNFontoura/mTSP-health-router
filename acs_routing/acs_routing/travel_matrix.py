@@ -1,5 +1,6 @@
-"""Asymmetric travel-time storage and OSRM access."""
+"""Travel-time storage plus local and OSRM matrix builders."""
 
+import math
 from pathlib import Path
 from typing import Sequence
 
@@ -23,6 +24,39 @@ class TravelMatrix:
         if values.ndim != 2 or values.shape[0] != values.shape[1]:
             raise ValueError("Travel matrix must be square")
         return cls(values, values.shape[0])
+
+    @classmethod
+    def from_coordinates(
+        cls,
+        coordinates: Sequence[tuple[float, float]],
+        speed_kmh: float = 4.5,
+    ) -> "TravelMatrix":
+        """Build an offline straight-line matrix from geographic points."""
+        if not coordinates:
+            raise ValueError("At least one coordinate is required")
+        if speed_kmh <= 0:
+            raise ValueError("speed_kmh must be positive")
+
+        radius_metres = 6_371_000.0
+        metres_per_second = speed_kmh / 3.6
+        points = [(math.radians(lat), math.radians(lon)) for lat, lon in coordinates]
+        values = np.zeros((len(points), len(points)), dtype=float)
+        for source, (lat1, lon1) in enumerate(points):
+            for destination in range(source + 1, len(points)):
+                lat2, lon2 = points[destination]
+                delta_lat = lat2 - lat1
+                delta_lon = lon2 - lon1
+                haversine = (
+                    math.sin(delta_lat / 2) ** 2
+                    + math.cos(lat1)
+                    * math.cos(lat2)
+                    * math.sin(delta_lon / 2) ** 2
+                )
+                distance = 2 * radius_metres * math.asin(math.sqrt(haversine))
+                duration = distance / metres_per_second
+                values[source, destination] = duration
+                values[destination, source] = duration
+        return cls.from_square(values)
 
     def seconds(self, source: int, destination: int) -> float:
         """Return travel time in seconds."""

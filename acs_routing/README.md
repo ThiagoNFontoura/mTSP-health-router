@@ -2,6 +2,26 @@
 
 Weekly route planning for community health agent home visits using real family data and a self-hosted OSRM foot-routing service.
 
+## Local desktop interface
+
+Run the simple offline interface with:
+
+```powershell
+python -m acs_routing.gui
+```
+
+Choose the family CSV, enter the number of employees available per day and
+their active time in minutes, then click **Processar e gerar rotas**. The
+active time is the maximum duration of each employee's daily route. The result
+is grouped by employee and day and shows each family's calculated priority.
+All five weekdays are displayed, including empty days. Families that do not
+fit are listed as not scheduled in the current week.
+
+The desktop interface does not require a web server or OSRM. It estimates
+travel times locally from straight-line geographic distance and uses the
+families' geographic centre as a virtual UBS. The CLI below continues to use
+OSRM street-network times for operational planning.
+
 ## Real-data flow
 
 1. Prepare a family CSV with `id`, `lat`, `lon`, all sentinel columns, optional `fixed_day`, `fixed_period_weeks`, `fixed_phase_weeks`, and `last_visit_date`.
