@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import argparse
 import random
 from datetime import date, timedelta
 from pathlib import Path
@@ -76,6 +77,18 @@ def make_family(row_id: int) -> dict[str, str | int | None]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "row_count",
+        nargs="?",
+        type=int,
+        default=100,
+        help="number of synthetic families to generate (default: 100)",
+    )
+    args = parser.parse_args()
+    if args.row_count < 0:
+        parser.error("row_count must be zero or greater")
+
     random.seed()
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -93,10 +106,10 @@ def main() -> None:
     with OUTPUT_PATH.open("w", newline="", encoding="utf-8") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
-        for row_id in range(1, 101):
+        for row_id in range(1, args.row_count + 1):
             writer.writerow(make_family(row_id))
 
-    print(f"Generated {OUTPUT_PATH}")
+    print(f"Generated {OUTPUT_PATH} with {args.row_count} families")
 
 
 if __name__ == "__main__":
