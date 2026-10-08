@@ -6,7 +6,9 @@ import unittest
 import numpy as np
 
 from acs_routing.config import Config
+from acs_routing.construction import construct_week
 from acs_routing.models import Family, Route, WeekState, build_family_index
+from acs_routing.reward import reward_matrix
 from acs_routing.reports import weekly_report
 from acs_routing.travel_matrix import TravelMatrix
 from acs_routing.validation import validate_plan
@@ -67,6 +69,46 @@ class MultiAgentPlanningTest(unittest.TestCase):
 
         self.assertEqual(len(state.routes), 2)
         self.assertEqual([(route.day, route.agent) for route in state.routes], [(1, 1), (2, 1)])
+
+    def test_construction_chooses_maximum_score_across_days(self) -> None:
+        config = Config(week_days=2, shift_minutes=100, n_iter=1)
+        rewards = np.asarray(
+            [
+                [50.0, 1.0],
+                [1.0, 100.0],
+            ]
+        )
+        families = [
+            Family(1, 0.0, 1.0, {}, "R0", None, None),
+            Family(2, 0.0, 2.0, {}, "R0", None, None),
+        ]
+        routes = construct_week(
+            families,
+            rewards,
+            TravelMatrix.from_square(np.zeros((3, 3))),
+            config,
+            self.monday,
+            np.random.default_rng(42),
+            build_family_index(families),
+        )
+
+        self.assertEqual(routes[0].sequence, [0, 1, 0])
+        self.assertEqual(routes[1].sequence, [0, 2, 0])
+
+    def test_agents_keep_separate_stacks_within_the_same_day(self) -> None:
+        config = Config(week_days=1, agents_per_day=2, shift_minutes=25, n_iter=1)
+        routes = construct_week(
+            self.families[:4],
+            reward_matrix(self.families[:4], self.monday, config),
+            TravelMatrix.from_square(np.zeros((5, 5))),
+            config,
+            self.monday,
+            np.random.default_rng(42),
+            build_family_index(self.families[:4]),
+        )
+
+        self.assertEqual([(route.day, route.agent) for route in routes], [(1, 1), (1, 2)])
+        self.assertEqual([len(route.sequence[1:-1]) for route in routes], [2, 2])
 
     def test_validator_certifies_attained_reward_upper_bound(self) -> None:
         config = Config(week_days=1, agents_per_day=2, shift_minutes=35)

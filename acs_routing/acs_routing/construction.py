@@ -9,7 +9,6 @@ from .config import Config
 from .models import Family, Route, node_index
 from .risk import service_time
 from .route_utils import total_time
-from .reward import is_fixed_active
 from .travel_matrix import TravelMatrix
 
 
@@ -47,13 +46,6 @@ def construct_week(
         dtype=np.float64,
     )
     service_times = {family.id: service_time(family.risk_class, config) for family in families}
-    fixed_days = np.asarray(
-        [
-            family.fixed_day if is_fixed_active(family, monday_date) else 0
-            for family in families
-        ],
-        dtype=np.int64,
-    )
     slot_days = np.repeat(np.arange(config.week_days), config.agents_per_day)
     slot_count = len(slot_days)
     routes = [[0, 0] for _ in range(slot_count)]
@@ -72,14 +64,13 @@ def construct_week(
     if config.use_neighbor_prefilter and nearest_nodes is None:
         nearest_nodes = matrix.precompute_nearest_nodes(config.neighbor_count)
     while not np.all(closed):
-        pairs: list[tuple[int, int, float, bool]] = []
+        pairs: list[tuple[int, int, float]] = []
         for slot in np.flatnonzero(~closed):
             day = int(slot_days[slot])
             position_node = int(positions[slot])
             eligible = (~used) & (reward_values[day] > 0.0)
             if nearest_nodes is not None:
                 geographic = np.isin(matrix_nodes, nearest_nodes[position_node])
-                geographic |= fixed_days == day + 1
                 eligible &= geographic
             candidate_indices = np.flatnonzero(eligible)
             if candidate_indices.size:
@@ -91,28 +82,23 @@ def construct_week(
             if candidate_indices.size == 0:
                 closed[slot] = True
                 continue
-            for family_index_value in candidate_indices:
-                pairs.append(
-                    (
-                        int(slot),
-                        int(family_index_value),
-                        float(scores[slot, family_index_value]),
-                        bool(fixed_days[family_index_value] == day + 1),
-                    )
+            top_position = int(
+                candidate_indices[
+                    np.argmax(scores[slot, candidate_indices])
+                ]
+            )
+            pairs.append(
+                (
+                    int(slot),
+                    top_position,
+                    float(scores[slot, top_position]),
                 )
+            )
         if not pairs:
             continue
-        fixed_pairs = [pair for pair in pairs if pair[3]]
-        if fixed_pairs:
-            selected = max(fixed_pairs, key=lambda pair: pair[2])
-        else:
-            pair_scores = np.asarray([pair[2] for pair in pairs], dtype=np.float64)
-            threshold = float(np.max(pair_scores)) - config.alpha * (
-                float(np.max(pair_scores)) - float(np.min(pair_scores))
-            )
-            rcl = [pair for pair in pairs if pair[2] >= threshold]
-            selected = rcl[int(rng.integers(0, len(rcl)))]
-        slot, family_position, _, _ = selected
+        # Each slot is an independent stack for one fixed day/agent. The
+        # global choice compares the current top of every eligible stack.
+        slot, family_position, _ = max(pairs, key=lambda pair: pair[2])
         day = int(slot_days[slot])
         family_id = int(family_ids[family_position])
         routes[slot].insert(-1, family_id)

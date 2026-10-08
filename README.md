@@ -27,7 +27,7 @@ Pacote Python (`acs_routing/`) que recebe um CSV de famílias, a localização d
    - *Visita flexível*: `a_flex × peso × bônus`, com decaimento gaussiano conforme a distância ao dia ideal (derivado de `last_visit_date` + intervalo-alvo do risco).
    - O *bônus de atraso* cresce por dia de atraso até um teto; recompensas abaixo de `epsilon_fraction` do máximo viram zero.
 3. **Tempos de viagem.** Matriz assimétrica de durações obtida da API `/table` de um OSRM (perfil `foot`), armazenada em um vetor contíguo.
-4. **Construção (GRASP).** As cinco rotas são construídas em paralelo, com uma máscara global de famílias já usadas. A pontuação de cada candidato é `recompensa / (deslocamento + tempo de atendimento)`. Famílias com dia fixo ativo têm prioridade; as demais entram por sorteio na lista restrita de candidatos (controlada por `alpha`). Só entram candidatos cuja inserção ainda permite voltar à UBS dentro do turno.
+4. **Construção (GRASP).** Cada combinação dia/agente mantém uma pilha independente de famílias. A pontuação de cada candidato é `recompensa / (deslocamento + tempo de atendimento)`. O maior valor global entre as pilhas elegíveis é inserido no caminhamento do seu próprio dia/agente; depois, somente essa pilha é recalculada, porque apenas sua posição atual mudou. Famílias com dia fixo ativo competem normalmente pelo score global, mas só têm recompensa positiva no dia fixo. Só entram candidatos cuja inserção ainda permite voltar à UBS dentro do turno.
 5. **Busca local.** Cada rota é refinada com 2-Opt, inserção e substituição de famílias, exigindo ganho mínimo (`min_gain`) e respeitando o turno. Famílias com dia fixo ativo não são substituídas.
 6. **Iterações.** Repete construção + refinamento `n_iter` vezes (sub-seeds determinísticas a partir de `seed`) e mantém a semana com maior recompensa total.
 7. **Relatório.** Demanda × capacidade, % de visitas no dia ideal, distribuição de atrasos, visitas por dia e alertas de dias fixos inviáveis.
@@ -102,7 +102,7 @@ R3 = 30
 |---|---|---|
 | `shift_minutes` | 360 | Duração do turno |
 | `n_iter` | 50 | Iterações do GRASP |
-| `alpha` | 0.3 | Aleatoriedade da lista restrita (0 = guloso) |
+| `alpha` | 0.3 | Mantido por compatibilidade; a construção atual é gulosa e escolhe sempre o maior score global |
 | `seed` | 42 | Semente |
 | `service_time` | R0-R3: 10/15/20/30 | Minutos por visita |
 | `risk_weight` | R0-R3: 1/2/4/8 | Peso de cada classe |
