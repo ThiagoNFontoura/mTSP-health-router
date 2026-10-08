@@ -17,10 +17,16 @@ is grouped by employee and day and shows each family's calculated priority.
 All five weekdays are displayed, including empty days. Families that do not
 fit are listed as not scheduled in the current week.
 
-The desktop interface does not require a web server or OSRM. It estimates
-travel times locally from straight-line geographic distance and uses the
-families' geographic centre as a virtual UBS. The CLI below continues to use
-OSRM street-network times for operational planning.
+The interface normalizes the planning date to that week's Monday. After the
+priority-based optimization, it fills remaining same-week capacity with
+unassigned flexible families whenever they fit without exceeding active time.
+Active fixed-day families remain restricted to their configured weekday.
+
+The desktop interface does not require a web server or OSRM. It estimates car
+travel locally from straight-line geographic distance at an assumed urban
+speed of 30 km/h and uses the families' geographic centre as a virtual UBS.
+The CLI below continues to use OSRM street-network times for operational
+planning.
 
 ## Real-data flow
 
