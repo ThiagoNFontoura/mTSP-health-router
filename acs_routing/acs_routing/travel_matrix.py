@@ -89,6 +89,12 @@ class TravelMatrix:
                 source_ids = range(source_start, source_end)
                 destination_ids = range(destination_start, destination_end)
                 ids = list(dict.fromkeys([*source_ids, *destination_ids]))
+                if len(ids) == 1:
+                    # OSRM rejects a table request containing only one
+                    # coordinate. This block can only represent d(i, i),
+                    # whose travel duration is exactly zero.
+                    result[source_start:source_end, destination_start:destination_end] = 0.0
+                    continue
                 coordinate_text = ";".join(
                     f"{coordinates[index][1]},{coordinates[index][0]}" for index in ids
                 )

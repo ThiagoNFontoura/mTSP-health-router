@@ -20,7 +20,7 @@ def plan_week(
     family_index: dict[int, int],
     excluded_ids: set[int] | None = None,
 ) -> WeekState:
-    """Plan five routes concurrently without repeating a family."""
+    """Plan all day/agent routes concurrently without repeating a family."""
     config.require_runtime_values()
     values = reward_matrix(families, monday_date, config)
     if excluded_ids:

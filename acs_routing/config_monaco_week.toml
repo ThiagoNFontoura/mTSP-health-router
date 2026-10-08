@@ -1,0 +1,6 @@
+initial_date = "2026-10-05"
+agents_per_day = 5
+shift_minutes = 90
+n_iter = 20
+seed = 42
+max_passes = 50

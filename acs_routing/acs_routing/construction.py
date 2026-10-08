@@ -37,7 +37,7 @@ def construct_week(
     family_index: Mapping[int, int],
     nearest_nodes: list[np.ndarray] | None = None,
 ) -> list[Route]:
-    """Construct five routes concurrently with one global used mask."""
+    """Construct every day/agent route with one global family-used mask."""
     if reward_values.shape != (config.week_days, len(families)):
         raise ValueError("reward_values must have shape (week_days, family_count)")
     family_ids = np.asarray([family.id for family in families], dtype=np.int64)
@@ -54,25 +54,28 @@ def construct_week(
         ],
         dtype=np.int64,
     )
-    routes = [[0, 0] for _ in range(config.week_days)]
-    positions = np.zeros(config.week_days, dtype=np.int64)
-    current_times = np.zeros(config.week_days, dtype=np.float64)
-    closed = np.zeros(config.week_days, dtype=bool)
+    slot_days = np.repeat(np.arange(config.week_days), config.agents_per_day)
+    slot_count = len(slot_days)
+    routes = [[0, 0] for _ in range(slot_count)]
+    positions = np.zeros(slot_count, dtype=np.int64)
+    current_times = np.zeros(slot_count, dtype=np.float64)
+    closed = np.zeros(slot_count, dtype=bool)
     used = np.zeros(len(families), dtype=bool)
     scores = np.vstack(
         [
             _score_vector(
                 reward_values[day], 0, matrix, matrix_nodes, service_values
             )
-            for day in range(config.week_days)
+            for day in slot_days
         ]
     )
     if config.use_neighbor_prefilter and nearest_nodes is None:
         nearest_nodes = matrix.precompute_nearest_nodes(config.neighbor_count)
     while not np.all(closed):
         pairs: list[tuple[int, int, float, bool]] = []
-        for day in np.flatnonzero(~closed):
-            position_node = int(positions[day])
+        for slot in np.flatnonzero(~closed):
+            day = int(slot_days[slot])
+            position_node = int(positions[slot])
             eligible = (~used) & (reward_values[day] > 0.0)
             if nearest_nodes is not None:
                 geographic = np.isin(matrix_nodes, nearest_nodes[position_node])
@@ -80,20 +83,20 @@ def construct_week(
                 eligible &= geographic
             candidate_indices = np.flatnonzero(eligible)
             if candidate_indices.size:
-                current_time = current_times[day]
+                current_time = current_times[slot]
                 from_position = matrix.row_minutes(position_node)[matrix_nodes[candidate_indices]]
                 to_ubs = matrix.to_ubs_minutes()[matrix_nodes[candidate_indices]]
                 feasible = current_time + from_position + service_values[candidate_indices] + to_ubs <= config.shift_minutes
                 candidate_indices = candidate_indices[feasible]
             if candidate_indices.size == 0:
-                closed[day] = True
+                closed[slot] = True
                 continue
             for family_index_value in candidate_indices:
                 pairs.append(
                     (
-                        int(day),
+                        int(slot),
                         int(family_index_value),
-                        float(scores[day, family_index_value]),
+                        float(scores[slot, family_index_value]),
                         bool(fixed_days[family_index_value] == day + 1),
                     )
                 )
@@ -109,23 +112,29 @@ def construct_week(
             )
             rcl = [pair for pair in pairs if pair[2] >= threshold]
             selected = rcl[int(rng.integers(0, len(rcl)))]
-        day, family_position, _, _ = selected
+        slot, family_position, _, _ = selected
+        day = int(slot_days[slot])
         family_id = int(family_ids[family_position])
-        routes[day].insert(-1, family_id)
+        routes[slot].insert(-1, family_id)
         used[family_position] = True
-        current_times[day] = total_time(routes[day], matrix, service_times, family_index)
-        positions[day] = matrix_nodes[family_position]
-        scores[day] = _score_vector(
-            reward_values[day], int(positions[day]), matrix, matrix_nodes, service_values
+        current_times[slot] = total_time(routes[slot], matrix, service_times, family_index)
+        positions[slot] = matrix_nodes[family_position]
+        scores[slot] = _score_vector(
+            reward_values[day], int(positions[slot]), matrix, matrix_nodes, service_values
         )
+    family_positions = {
+        int(family_id): position for position, family_id in enumerate(family_ids)
+    }
     return [
         Route(
             sequence=route,
             total_time=total_time(route, matrix, service_times, family_index),
             total_reward=sum(
-                reward_values[day, family_ids.tolist().index(family_id)]
+                reward_values[int(slot_days[slot]), family_positions[family_id]]
                 for family_id in route[1:-1]
             ),
+            day=int(slot_days[slot]) + 1,
+            agent=slot % config.agents_per_day + 1,
         )
-        for day, route in enumerate(routes)
+        for slot, route in enumerate(routes)
     ]
