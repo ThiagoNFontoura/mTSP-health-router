@@ -22,7 +22,7 @@ def solve_week(
     family_index: dict[int, int],
     nearest_nodes: list[np.ndarray] | None = None,
 ) -> list[Route]:
-    """Return the best refined five-route week found."""
+    """Return the best refined multi-agent week found."""
     best_routes: list[Route] | None = None
     best_reward = float("-inf")
     for _ in range(config.n_iter):
@@ -43,7 +43,10 @@ def solve_week(
             for route in routes
             for family_id in route.sequence[1:-1]
         }
-        for day, route in enumerate(routes):
+        for route_index, route in enumerate(routes):
+            day = (route.day - 1) if route.day is not None else (
+                route_index // config.agents_per_day
+            )
             route_ids = set(route.sequence[1:-1])
             excluded_ids = used_ids - route_ids
             day_rewards = {
@@ -70,4 +73,13 @@ def solve_week(
         if total_reward > best_reward:
             best_reward = total_reward
             best_routes = routes
-    return best_routes or [Route([0, 0], 0.0, 0.0) for _ in range(config.week_days)]
+    return best_routes or [
+        Route(
+            [0, 0],
+            0.0,
+            0.0,
+            day=slot // config.agents_per_day + 1,
+            agent=slot % config.agents_per_day + 1,
+        )
+        for slot in range(config.week_days * config.agents_per_day)
+    ]

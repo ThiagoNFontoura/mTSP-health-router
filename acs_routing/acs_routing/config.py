@@ -12,7 +12,7 @@ class Config:
     """Hold all operational and algorithm configuration values."""
 
     shift_minutes: int = 360
-    k: int = 14  # used only for capacity estimates and reports, never to limit candidates
+    k: int = 14  # per-agent estimate for reports, never used to limit candidates
     use_neighbor_prefilter: bool = False
     neighbor_count: int = 50
     n_iter: int = 50
@@ -54,6 +54,7 @@ class Config:
     sigma: float = 1.0
     epsilon_fraction: float = 0.01
     week_days: int = 5
+    agents_per_day: int = 1
     osrm_profile: str = "foot"
     initial_date: date | None = None
     initial_last_visit_date: date | None = date(2026, 1, 1)
@@ -64,6 +65,8 @@ class Config:
             raise ValueError("n_iter must be positive and alpha must be in [0, 1]")
         if self.neighbor_count <= 0 or self.max_passes <= 0:
             raise ValueError("neighbor_count and max_passes must be positive")
+        if self.week_days <= 0 or self.agents_per_day <= 0:
+            raise ValueError("week_days and agents_per_day must be positive")
 
 
 DEFAULT_CONFIG = Config()

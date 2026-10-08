@@ -28,6 +28,8 @@ class Route:
     sequence: list[int] = field(default_factory=list)
     total_time: float = 0.0
     total_reward: float = 0.0
+    day: int | None = None
+    agent: int | None = None
 
 
 @dataclass

@@ -2,7 +2,9 @@
 
 import argparse
 import csv
+from dataclasses import replace
 from datetime import date
+from pathlib import Path
 
 from .config import load_config
 from .families_loader import load_families
@@ -22,6 +24,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--state-file", help="JSON history file")
     parser.add_argument("--completed-file", help="CSV with id,visit_date")
     parser.add_argument("--config", help="JSON or TOML configuration file")
+    parser.add_argument(
+        "--agents-per-day",
+        type=int,
+        help="number of ACS agents available each planning day",
+    )
     return parser
 
 
@@ -55,9 +62,15 @@ def main() -> None:
     """Load real data, plan a week, and print routes and report."""
     args = build_parser().parse_args()
     config = load_config(args.config)
+    if args.agents_per_day is not None:
+        config = replace(config, agents_per_day=args.agents_per_day)
     monday = config.initial_date or date.today()
     families = load_families(args.families_file, config.initial_last_visit_date)
-    history = load_state(args.state_file).families if args.state_file else None
+    history = (
+        load_state(args.state_file).families
+        if args.state_file and Path(args.state_file).exists()
+        else None
+    )
     if history is not None:
         families = history
     ubs = _parse_ubs(args.ubs)
@@ -94,8 +107,14 @@ def main() -> None:
     )
     if args.state_file:
         save_state(state, args.state_file)
-    for day, route in enumerate(state.routes, start=1):
-        print(f"Day {day}: {route.sequence} ({route.total_time:.1f} minutes, reward {route.total_reward:.1f})")
+    for route_index, route in enumerate(state.routes):
+        day = route.day or (route_index // config.agents_per_day + 1)
+        agent = route.agent or (route_index % config.agents_per_day + 1)
+        label = f"Day {day}" if config.agents_per_day == 1 else f"Day {day}, Agent {agent}"
+        print(
+            f"{label}: {route.sequence} "
+            f"({route.total_time:.1f} minutes, reward {route.total_reward:.1f})"
+        )
     print(weekly_report(families, state, config))
 
 
