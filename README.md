@@ -8,6 +8,7 @@ Ferramenta de linha de comando para o **planejamento semanal de visitas domicili
 - [Requisitos](#requisitos)
 - [Instalação](#instalação)
 - [Uso](#uso)
+- [Gerar dados sintéticos](#gerar-dados-sintéticos)
 - [Interface gráfica local](#interface-gráfica-local)
 - [Dados de entrada](#dados-de-entrada)
 - [Como o algoritmo funciona](#como-o-algoritmo-funciona)
@@ -84,6 +85,27 @@ python -m acs_routing.main `
 | `--agents-per-day` | não | Número de agentes/rotas por dia (padrão: `1`) |
 
 > **Atenção:** use `--ubs=lat,lon` (com `=`). Como as coordenadas costumam ser negativas, sem o `=` o `argparse` interpreta o valor como se fosse uma opção.
+
+## Gerar dados sintéticos
+
+O script `acs_routing/scripts/generate_synthetic_families.py` cria um CSV de famílias sintéticas de Porto Alegre para testes. Execute o comando a partir da raiz do repositório e informe quantas famílias deseja gerar:
+
+```bash
+python3 acs_routing/scripts/generate_synthetic_families.py [PREENCHER]
+```
+
+O argumento é opcional; se omitido, o script gera 100 famílias. O arquivo é salvo em `acs_routing/data/families_porto_alegre_synthetic.csv`, independentemente da pasta atual, e uma nova execução substitui esse arquivo.
+
+Cada linha recebe um ID sequencial, coordenadas aleatórias dentro da área configurada para Porto Alegre e valores sintéticos para os indicadores de saúde e condições domiciliares. O tamanho domiciliar é sorteado para definir os campos de pessoas por cômodo; cerca de 14% das famílias recebem restrições de dia e periodicidade. A data da última visita é sorteada para ficar entre 7 e 120 dias antes da execução. Como os dados são aleatórios, novas execuções normalmente produzem conteúdo diferente.
+
+O CSV segue o formato esperado pelo carregador do projeto e pode ser usado, por exemplo, assim:
+
+```bash
+python3 -m acs_routing.main \
+  --families-file acs_routing/data/families_porto_alegre_synthetic.csv \
+  --ubs=-30.02267067,-51.06028531 \
+  --osrm-url http://localhost:5000
+```
 
 ## Dados de entrada
 
