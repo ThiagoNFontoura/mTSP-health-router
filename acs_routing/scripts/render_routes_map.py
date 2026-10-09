@@ -216,6 +216,11 @@ def render_map_html(
     ul {{ display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 0; list-style: none; }}
     li {{ display: flex; align-items: center; gap: 6px; }}
     .swatch {{ width: 18px; height: 4px; display: inline-block; }}
+    #download-map {{ padding: 7px 12px; border: 1px solid #2563eb;
+                     border-radius: 6px; background: #2563eb; color: white;
+                     font: inherit; cursor: pointer; }}
+    #download-map:disabled {{ opacity: 0.65; cursor: wait; }}
+    #download-status {{ color: #475569; font-weight: 400; }}
   </style>
 </head>
 <body>
@@ -237,10 +242,14 @@ def render_map_html(
           <option value="5">Sexta</option>
         </select>
       </label>
+      <button id="download-map" type="button">Baixar imagem atual</button>
+      <span id="download-status" role="status" aria-live="polite"></span>
     </div>
     <div id="map" role="img" aria-label="Mapa interativo das rotas semanais"></div>
   </main>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          ></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"
           ></script>
   <script>
     const routeData = {map_routes_json};
@@ -292,6 +301,34 @@ def render_map_html(
     }});
     document.getElementById("agent-filter").addEventListener("change", updateRoutes);
     document.getElementById("day-filter").addEventListener("change", updateRoutes);
+    document.getElementById("download-map").addEventListener("click", async () => {{
+      const button = document.getElementById("download-map");
+      const status = document.getElementById("download-status");
+      const agent = document.getElementById("agent-filter").value;
+      const day = document.getElementById("day-filter").value;
+      button.disabled = true;
+      status.textContent = "Capturando...";
+      try {{
+        const canvas = await html2canvas(document.getElementById("map"), {{
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: "#f8fafc",
+          logging: false
+        }});
+        const link = document.createElement("a");
+        const agentLabel = agent === "all" ? "todos-agentes" : "agente-" + agent;
+        const dayLabel = day === "all" ? "todos-dias" : dayNames[Number(day)];
+        link.download = "rotas-" + agentLabel + "-" + dayLabel + ".png";
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+        status.textContent = "Imagem baixada.";
+      }} catch (error) {{
+        console.error(error);
+        status.textContent = "Não foi possível capturar o mapa.";
+      }} finally {{
+        button.disabled = false;
+      }}
+    }});
     map.fitBounds(bounds, {{ padding: [45, 45], maxZoom: 16 }});
     const minimumZoom = map.getBoundsZoom(bounds, false);
     map.setMinZoom(minimumZoom);

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import time
 import tkinter as tk
 import importlib.util
 import webbrowser
@@ -10,7 +11,12 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
-from .desktop_app import _virtual_ubs, format_plan, process_csv
+from .desktop_app import (
+    _virtual_ubs,
+    format_plan,
+    process_csv,
+    update_csv_last_visit_dates,
+)
 from .models import Family, WeekState
 from .state import save_state
 
@@ -31,6 +37,7 @@ class RoutingApp:
         self.csv_path = tk.StringVar()
         self.agents = tk.StringVar(value="1")
         self.shift_minutes = tk.StringVar(value="360")
+        self.weeks_ahead = tk.StringVar(value="0")
         self.status = tk.StringVar(value="Selecione um arquivo CSV para começar.")
         self.map_path: Path | None = None
         self._families: list[Family] | None = None
@@ -70,12 +77,23 @@ class RoutingApp:
             width=8,
         ).grid(row=2, column=1, sticky="w", pady=6)
 
+        ttk.Label(frame, text="Semanas para simulação (a partir de hoje):").grid(
+            row=3, column=0, sticky="w", padx=(0, 8), pady=6
+        )
+        ttk.Spinbox(
+            frame,
+            from_=0,
+            to=520,
+            textvariable=self.weeks_ahead,
+            width=8,
+        ).grid(row=3, column=1, sticky="w", pady=6)
+
         self.process_button = ttk.Button(
             frame,
             text="Processar e gerar rotas",
             command=self.start_processing,
         )
-        self.process_button.grid(row=3, column=0, columnspan=3, sticky="ew", pady=10)
+        self.process_button.grid(row=4, column=0, columnspan=3, sticky="ew", pady=10)
 
         self.map_button = ttk.Button(
             frame,
@@ -83,13 +101,14 @@ class RoutingApp:
             command=self.open_map,
             state=tk.DISABLED,
         )
-        self.map_button.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+        self.map_button.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(0, 10))
 
         ttk.Label(frame, textvariable=self.status).grid(
-            row=5, column=0, columnspan=3, sticky="w", pady=(0, 8)
+            row=6, column=0, columnspan=3, sticky="w", pady=(0, 8)
         )
         self.output = ScrolledText(frame, wrap=tk.WORD, font=("Consolas", 10))
-        self.output.grid(row=6, column=0, columnspan=3, sticky="nsew")
+        self.output.grid(row=7, column=0, columnspan=3, sticky="nsew")
+        frame.rowconfigure(7, weight=1)
 
     def choose_csv(self) -> None:
         path = filedialog.askopenfilename(
@@ -108,14 +127,16 @@ class RoutingApp:
         try:
             agents = int(self.agents.get())
             shift_minutes = int(self.shift_minutes.get())
-            if agents <= 0:
+            weeks_ahead = int(self.weeks_ahead.get())
+            if agents <= 0 or weeks_ahead < 0:
                 raise ValueError
             if shift_minutes <= 0:
                 raise ValueError
         except ValueError:
             messagebox.showwarning(
                 "Valor inválido",
-                "Informe números maiores que zero para agentes e tempo ativo.",
+                "Informe agentes e tempo ativo maiores que zero, "
+                "e semanas de simulação maiores ou iguais a zero.",
             )
             return
         self.process_button.configure(state=tk.DISABLED)
@@ -127,14 +148,33 @@ class RoutingApp:
         self.map_button.configure(state=tk.DISABLED)
         threading.Thread(
             target=self._process,
-            args=(path, agents, shift_minutes),
+            args=(path, agents, shift_minutes, weeks_ahead),
             daemon=True,
         ).start()
 
-    def _process(self, path: str, agents: int, shift_minutes: int) -> None:
+    def _process(
+        self,
+        path: str,
+        agents: int,
+        shift_minutes: int,
+        weeks_ahead: int,
+    ) -> None:
         try:
-            families, state = process_csv(path, agents, shift_minutes)
-            result = format_plan(families, state, agents)
+            solver_started_at = time.perf_counter()
+            families, state = process_csv(
+                path,
+                agents,
+                shift_minutes,
+                weeks_ahead=weeks_ahead,
+            )
+            solver_seconds = time.perf_counter() - solver_started_at
+            result = format_plan(
+                families,
+                state,
+                agents,
+                execution_seconds=solver_seconds,
+            )
+            update_csv_last_visit_dates(path, state)
         except Exception as error:  # surfaced in the UI with the original message
             self.root.after(0, self._show_error, str(error))
             return

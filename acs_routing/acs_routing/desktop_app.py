@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from datetime import date, timedelta
+import csv
 from pathlib import Path
 
 from .config import DEFAULT_CONFIG, Config
@@ -112,12 +113,15 @@ def process_csv(
     agents_per_day: int,
     shift_minutes: int = 360,
     config: Config = DEFAULT_CONFIG,
+    weeks_ahead: int = 0,
 ) -> tuple[list[Family], WeekState]:
     """Load a family CSV and produce one weekly plan without external services."""
     if agents_per_day <= 0:
         raise ValueError("O número de funcionários deve ser maior que zero.")
     if shift_minutes <= 0:
         raise ValueError("O tempo ativo deve ser maior que zero.")
+    if weeks_ahead < 0:
+        raise ValueError("O número de semanas para simulação não pode ser negativo.")
     effective_config = replace(
         config,
         agents_per_day=agents_per_day,
@@ -127,7 +131,9 @@ def process_csv(
     ubs = _virtual_ubs(families)
     coordinates = [ubs] + [(family.lat, family.lon) for family in families]
     matrix = TravelMatrix.from_coordinates(coordinates, speed_kmh=CAR_SPEED_KMH)
-    planning_date = effective_config.initial_date or date.today()
+    planning_date = (
+        effective_config.initial_date or date.today()
+    ) + timedelta(weeks=weeks_ahead)
     monday = planning_date - timedelta(days=planning_date.weekday())
     family_index = build_family_index(families)
     state = plan_week(
@@ -148,11 +154,50 @@ def process_csv(
     return families, state
 
 
+def update_csv_last_visit_dates(
+    csv_path: str | Path,
+    state: WeekState,
+) -> None:
+    """Update visited families with the date of their assigned route day."""
+    if state.monday_date is None:
+        raise ValueError("WeekState requires monday_date to update the CSV")
+
+    path = Path(csv_path)
+    with path.open(newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        fieldnames = list(reader.fieldnames or [])
+        rows = list(reader)
+    if not fieldnames:
+        raise ValueError("Family CSV has no header")
+    if "last_visit_date" not in fieldnames:
+        fieldnames.append("last_visit_date")
+
+    visit_dates: dict[int, date] = {}
+    for route in state.routes:
+        if route.day is None:
+            raise ValueError("Route requires a day to update the CSV")
+        visit_date = state.monday_date + timedelta(days=route.day - 1)
+        for family_id in route.sequence[1:-1]:
+            visit_dates[family_id] = visit_date
+
+    for row in rows:
+        family_id = int(row["id"])
+        visit_date = visit_dates.get(family_id)
+        if visit_date is not None:
+            row["last_visit_date"] = visit_date.isoformat()
+
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def format_plan(
     families: list[Family],
     state: WeekState,
     agents_per_day: int,
     config: Config = DEFAULT_CONFIG,
+    execution_seconds: float | None = None,
 ) -> str:
     """Create a readable list with every health agent and all five weekdays."""
     family_by_id = {family.id: family for family in families}
@@ -211,6 +256,10 @@ def format_plan(
             "Indicadores após o cálculo das rotas:",
         ]
     )
+    if execution_seconds is not None:
+        lines.append(
+            f"  Tempo de execução do solver: {execution_seconds:.3f} segundos"
+        )
     risk_totals = report["risk_family_totals"]
     risk_visited = report["risk_family_visited"]
     risk_percentages = report["risk_family_visit_percentages"]

@@ -1,13 +1,24 @@
+import csv
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
+import sys
+from unittest.mock import patch
 
 from acs_routing.config import Config
-from acs_routing.desktop_app import CAR_SPEED_KMH, format_plan, process_csv
+from acs_routing.desktop_app import (
+    CAR_SPEED_KMH,
+    format_plan,
+    process_csv,
+    update_csv_last_visit_dates,
+)
 from acs_routing.models import Family, Route, WeekState
 from acs_routing.reports import weekly_report
 from acs_routing.travel_matrix import TravelMatrix
+
+sys.path.insert(0, str(Path(__file__).parents[1]))
+from scripts.render_routes_map import render_map_html
 
 
 CSV_TEXT = """id,lat,lon,bedridden,physical_disability,mental_disability,poor_sanitation,severe_malnutrition,drug_addiction,unemployment,illiteracy,under_6_months,over_70_years,hypertension,diabetes,people_per_room
@@ -40,6 +51,30 @@ class DesktopAppTest(unittest.TestCase):
 
     def test_desktop_uses_car_speed(self) -> None:
         self.assertEqual(CAR_SPEED_KMH, 30.0)
+
+    def test_format_plan_includes_solver_execution_time(self) -> None:
+        state = WeekState([], [Route([0, 0], day=1, agent=1)], date(2026, 10, 5))
+
+        output = format_plan([], state, 1, execution_seconds=1.23456)
+
+        self.assertIn("Tempo de execução do solver: 1.235 segundos", output)
+
+    def test_map_includes_current_view_download_control(self) -> None:
+        with patch(
+            "scripts.render_routes_map._fetch_osrm_geometry",
+            return_value=[(-23.55, -46.63), (-23.551, -46.631)],
+        ):
+            document = render_map_html(
+                {1: (-23.55, -46.63)},
+                [{"day": 1, "agent": 1, "sequence": [0, 1, 0]}],
+                (-23.55, -46.63),
+                osrm_url="http://localhost:5000",
+            )
+
+        self.assertIn('id="download-map"', document)
+        self.assertIn("html2canvas", document)
+        self.assertIn("document.getElementById(\"map\")", document)
+        self.assertIn("agentLabel", document)
 
     def test_process_and_format_plan(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -185,6 +220,36 @@ class DesktopAppTest(unittest.TestCase):
             "277 dias desde a última visita",
             output,
         )
+
+    def test_simulation_weeks_shift_planning_week(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "families.csv"
+            path.write_text(CSV_TEXT, encoding="utf-8")
+            _, state = process_csv(
+                path,
+                1,
+                config=Config(week_days=1, n_iter=1, max_passes=2),
+                weeks_ahead=2,
+            )
+
+        today_monday = date.today() - timedelta(days=date.today().weekday())
+        self.assertEqual(state.monday_date, today_monday + timedelta(weeks=2))
+
+    def test_update_csv_uses_assigned_route_date_and_adds_column(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "families.csv"
+            path.write_text(CSV_TEXT, encoding="utf-8")
+            state = WeekState(
+                [],
+                [Route([0, 1, 0], day=2, agent=1)],
+                date(2026, 10, 5),
+            )
+
+            update_csv_last_visit_dates(path, state)
+            rows = list(csv.DictReader(path.open(newline="", encoding="utf-8")))
+
+        self.assertEqual(rows[0]["last_visit_date"], "2026-10-06")
+        self.assertEqual(rows[1]["last_visit_date"], "")
 
 
 if __name__ == "__main__":
