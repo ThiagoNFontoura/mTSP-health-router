@@ -71,7 +71,7 @@ def make_family(row_id: int) -> dict[str, str | int | None]:
         row["fixed_period_weeks"] = ""
         row["fixed_phase_weeks"] = ""
 
-    days_ago = random.randint(7, 120)
+    days_ago = random.randint(0, 30)
     row["last_visit_date"] = (date.today() - timedelta(days=days_ago)).isoformat()
     return row
 
