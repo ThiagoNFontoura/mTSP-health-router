@@ -18,10 +18,8 @@ COLORS = (
     "#16a34a",
     "#9333ea",
     "#ea580c",
-    "#0891b2",
-    "#be123c",
-    "#4f46e5",
 )
+ROUTE_OPACITY = 0.38
 
 
 def _parse_ubs(value: str) -> tuple[float, float]:
@@ -146,12 +144,13 @@ def render_map_html(
         route_points = [point(latitude, longitude) for latitude, longitude in geographic_points]
         if len(route_points) < 2:
             continue
-        color = COLORS[route_index % len(COLORS)]
+        day = route.get("day") or route_index + 1
+        color = COLORS[(int(day) - 1) % len(COLORS)]
         route_label = _route_label(route, route_index)
         map_routes.append(
             {
                 "index": route_index,
-                "day": route.get("day") or route_index + 1,
+                "day": day,
                 "agent": route.get("agent") or 1,
                 "label": route_label,
                 "color": color,
@@ -162,7 +161,8 @@ def render_map_html(
         label = html.escape(route_label)
         svg.append(
             f'<polyline points="{points}" fill="none" stroke="{color}" '
-            f'stroke-width="3" stroke-linejoin="round" stroke-linecap="round">'
+            f'stroke-opacity="{ROUTE_OPACITY}" stroke-width="3" '
+            f'stroke-linejoin="round" stroke-linecap="round">'
             f"<title>{label}</title></polyline>"
         )
 
@@ -216,6 +216,14 @@ def render_map_html(
     ul {{ display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 0; list-style: none; }}
     li {{ display: flex; align-items: center; gap: 6px; }}
     .swatch {{ width: 18px; height: 4px; display: inline-block; }}
+    .legend {{ display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
+               font-size: 13px; font-weight: 600; }}
+    .legend span {{ display: inline-flex; align-items: center; gap: 5px; }}
+    .monday {{ background: #2563eb; }}
+    .tuesday {{ background: #dc2626; }}
+    .wednesday {{ background: #16a34a; }}
+    .thursday {{ background: #9333ea; }}
+    .friday {{ background: #ea580c; }}
     #download-map {{ padding: 7px 12px; border: 1px solid #2563eb;
                      border-radius: 6px; background: #2563eb; color: white;
                      font: inherit; cursor: pointer; }}
@@ -242,6 +250,13 @@ def render_map_html(
           <option value="5">Sexta</option>
         </select>
       </label>
+      <div class="legend" aria-label="Cores dos dias">
+        <span><i class="swatch monday"></i>Segunda</span>
+        <span><i class="swatch tuesday"></i>Terça</span>
+        <span><i class="swatch wednesday"></i>Quarta</span>
+        <span><i class="swatch thursday"></i>Quinta</span>
+        <span><i class="swatch friday"></i>Sexta</span>
+      </div>
       <button id="download-map" type="button">Baixar imagem atual</button>
       <span id="download-status" role="status" aria-live="polite"></span>
     </div>
@@ -289,7 +304,7 @@ def render_map_html(
 
     routeData.forEach(route => {{
       const layer = L.polyline(route.points, {{
-        color: route.color, weight: 5, opacity: 0.9
+        color: route.color, weight: 5, opacity: {ROUTE_OPACITY}
       }}).bindTooltip(route.label);
       routeLayers.push({{ route, layer }});
     }});

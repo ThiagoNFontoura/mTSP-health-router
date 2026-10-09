@@ -66,7 +66,10 @@ class DesktopAppTest(unittest.TestCase):
         ):
             document = render_map_html(
                 {1: (-23.55, -46.63)},
-                [{"day": 1, "agent": 1, "sequence": [0, 1, 0]}],
+                [
+                    {"day": 1, "agent": 1, "sequence": [0, 1, 0]},
+                    {"day": 2, "agent": 1, "sequence": [0, 1, 0]},
+                ],
                 (-23.55, -46.63),
                 osrm_url="http://localhost:5000",
             )
@@ -75,6 +78,10 @@ class DesktopAppTest(unittest.TestCase):
         self.assertIn("html2canvas", document)
         self.assertIn("document.getElementById(\"map\")", document)
         self.assertIn("agentLabel", document)
+        self.assertIn('"color": "#2563eb"', document)
+        self.assertIn('"color": "#dc2626"', document)
+        self.assertIn("opacity: 0.38", document)
+        self.assertIn("Cores dos dias", document)
 
     def test_process_and_format_plan(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
