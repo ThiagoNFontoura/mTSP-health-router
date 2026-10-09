@@ -49,8 +49,8 @@ class Config:
     )
     a_fixed: int = 2500
     a_flex: int = 100
-    delay_bonus_per_day: float = 0.02
-    delay_bonus_cap: float = 1.25
+    delay_bonus_per_day: float = 0.05
+    delay_bonus_cap: float = 2.5
     sigma: float = 1.0
     epsilon_fraction: float = 0.01
     week_days: int = 5

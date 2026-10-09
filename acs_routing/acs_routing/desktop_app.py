@@ -9,6 +9,7 @@ from .families_loader import load_families
 from .models import Family, WeekState, build_family_index
 from .reward import family_reward, is_fixed_active
 from .risk import risk_weight, service_time
+from .reports import weekly_report
 from .route_utils import insertion_delta, total_time
 from .travel_matrix import TravelMatrix
 from .weekly_planner import plan_week
@@ -151,6 +152,7 @@ def format_plan(
     families: list[Family],
     state: WeekState,
     agents_per_day: int,
+    config: Config = DEFAULT_CONFIG,
 ) -> str:
     """Create a readable list with every health agent and all five weekdays."""
     family_by_id = {family.id: family for family in families}
@@ -198,4 +200,36 @@ def format_plan(
     pending = [family.id for family in families if family.id not in visited]
     if pending:
         lines.append("Não programadas nesta semana: " + ", ".join(map(str, pending)))
+    report = weekly_report(
+        families,
+        state,
+        replace(config, agents_per_day=agents_per_day),
+    )
+    lines.extend(
+        [
+            "",
+            "Indicadores após o cálculo das rotas:",
+        ]
+    )
+    risk_totals = report["risk_family_totals"]
+    risk_visited = report["risk_family_visited"]
+    risk_percentages = report["risk_family_visit_percentages"]
+    for risk_class in ("R1", "R2", "R3"):
+        lines.append(
+            f"  {risk_class}: {risk_visited.get(risk_class, 0)} de "
+            f"{risk_totals.get(risk_class, 0)} famílias visitadas "
+            f"({risk_percentages.get(risk_class, 0.0):.1f}%)"
+        )
+    lines.append(
+        "  Famílias de dia fixo não atendidas no dia previsto: "
+        f"{report['active_fixed_not_served']}"
+    )
+    lines.append(
+        "  Famílias atrasadas por intervalo entre visitas não atendidas: "
+        f"{report['overdue_not_served']}"
+    )
+    lines.append(
+        "  Maior atraso entre as famílias não atendidas: "
+        f"{report['max_overdue_days_since_last_visit']} dias desde a última visita"
+    )
     return "\n".join(lines)

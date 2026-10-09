@@ -34,6 +34,17 @@ def weekly_report(
         for _ in range(config.week_days)
     ]
     family_by_id = {family.id: family for family in families}
+    visited_ids = {
+        family_id
+        for route in state.routes
+        for family_id in route.sequence[1:-1]
+    }
+    risk_totals = Counter(family.risk_class for family in families)
+    risk_visited = Counter(
+        family.risk_class
+        for family in families
+        if family.id in visited_ids
+    )
     for family in families:
         interval = config.target_interval.get(family.risk_class)
         due_date = (
@@ -73,7 +84,27 @@ def weekly_report(
             )
     for family in families:
         if is_fixed_active(family, monday) and family.fixed_day is not None:
-            active_fixed_by_day[family.fixed_day - 1] += 1
+            if 1 <= family.fixed_day <= config.week_days:
+                active_fixed_by_day[family.fixed_day - 1] += 1
+    active_fixed_not_served = sum(
+        active - served
+        for active, served in zip(active_fixed_by_day, active_fixed_served_by_day)
+    )
+    overdue_not_served = sum(
+        1
+        for family in families
+        if family.id not in visited_ids
+        and family.fixed_day is None
+        and _days_late(family, monday, config) > 0
+    )
+    overdue_days_since_last_visit = [
+        (monday - family.last_visit_date).days
+        for family in families
+        if family.id not in visited_ids
+        and family.fixed_day is None
+        and family.last_visit_date is not None
+        and _days_late(family, monday, config) > 0
+    ]
     visits = len(delays)
     return {
         "demand": due_by_week_end,
@@ -90,6 +121,24 @@ def weekly_report(
             active - served
             for active, served in zip(active_fixed_by_day, active_fixed_served_by_day)
         ],
+        "risk_family_totals": dict(risk_totals),
+        "risk_family_visited": dict(risk_visited),
+        "risk_family_visit_percentages": {
+            risk_class: (
+                risk_visited[risk_class] / total * 100.0
+                if total
+                else 0.0
+            )
+            for risk_class, total in risk_totals.items()
+            if risk_class in {"R1", "R2", "R3"}
+        },
+        "active_fixed_not_served": active_fixed_not_served,
+        "overdue_not_served": overdue_not_served,
+        "max_overdue_days_since_last_visit": (
+            max(overdue_days_since_last_visit)
+            if overdue_days_since_last_visit
+            else 0
+        ),
         "active_fixed_warning": any(
             active > served
             for active, served in zip(active_fixed_by_day, active_fixed_served_by_day)

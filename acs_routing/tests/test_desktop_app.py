@@ -5,6 +5,8 @@ from pathlib import Path
 
 from acs_routing.config import Config
 from acs_routing.desktop_app import CAR_SPEED_KMH, format_plan, process_csv
+from acs_routing.models import Family, Route, WeekState
+from acs_routing.reports import weekly_report
 from acs_routing.travel_matrix import TravelMatrix
 
 
@@ -141,6 +143,48 @@ class DesktopAppTest(unittest.TestCase):
         ]
         self.assertEqual(len(planned), 1)
         self.assertEqual(planned[0][0], 1)
+
+    def test_report_metrics_cover_risk_fixed_day_and_interval_status(self) -> None:
+        config = Config(
+            week_days=4,
+            agents_per_day=1,
+            initial_date=date(2026, 10, 5),
+        )
+        families = [
+            Family(1, 0.0, 0.0, {}, "R1", None, date(2026, 7, 1)),
+            Family(2, 0.0, 0.0, {}, "R1", None, date(2026, 10, 1)),
+            Family(3, 0.0, 0.0, {}, "R2", None, date(2026, 1, 1)),
+            Family(4, 0.0, 0.0, {}, "R3", None, date(2026, 1, 1)),
+            Family(5, 0.0, 0.0, {}, "R0", 3, date(2026, 1, 1)),
+            Family(6, 0.0, 0.0, {}, "R0", 5, date(2026, 1, 1)),
+        ]
+        state = WeekState(
+            families,
+            [Route([0, 1, 5, 0], day=1, agent=1)],
+            date(2026, 10, 5),
+        )
+
+        report = weekly_report(families, state, config)
+
+        self.assertEqual(report["risk_family_visit_percentages"]["R1"], 50.0)
+        self.assertEqual(report["risk_family_visit_percentages"]["R2"], 0.0)
+        self.assertEqual(report["risk_family_visit_percentages"]["R3"], 0.0)
+        self.assertEqual(report["active_fixed_not_served"], 1)
+        self.assertEqual(report["overdue_not_served"], 2)
+        self.assertEqual(report["max_overdue_days_since_last_visit"], 277)
+
+        output = format_plan(families, state, 1, config)
+        self.assertIn("R1: 1 de 2 famílias visitadas (50.0%)", output)
+        self.assertIn("Famílias de dia fixo não atendidas no dia previsto: 1", output)
+        self.assertIn(
+            "Famílias atrasadas por intervalo entre visitas não atendidas: 2",
+            output,
+        )
+        self.assertIn(
+            "Maior atraso entre as famílias não atendidas: "
+            "277 dias desde a última visita",
+            output,
+        )
 
 
 if __name__ == "__main__":
