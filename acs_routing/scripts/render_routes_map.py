@@ -19,7 +19,7 @@ COLORS = (
     "#9333ea",
     "#ea580c",
 )
-ROUTE_OPACITY = 0.38
+ROUTE_OPACITY = 0.65
 
 
 def _parse_ubs(value: str) -> tuple[float, float]:
@@ -275,6 +275,9 @@ def render_map_html(
     const bounds = rawBounds.pad(0.08);
     const map = L.map("map", {{
       zoomControl: true,
+      zoomAnimation: false,
+      fadeAnimation: false,
+      markerZoomAnimation: false,
       maxBounds: bounds,
       maxBoundsViscosity: 1.0,
       maxZoom: 18
@@ -324,6 +327,17 @@ def render_map_html(
       button.disabled = true;
       status.textContent = "Capturando...";
       try {{
+        // Leaflet keeps tiles and vector layers in transformed panes while
+        // zooming. Let the final transform settle before html2canvas reads it.
+        map.stop();
+        map.invalidateSize({{ pan: false, debounceMoveend: true }});
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        await new Promise(resolve => {{
+          map.once("moveend", resolve);
+          map.setView(center, zoom, {{ animate: false }});
+        }});
+        await new Promise(resolve => requestAnimationFrame(resolve));
         const canvas = await html2canvas(document.getElementById("map"), {{
           useCORS: true,
           allowTaint: false,

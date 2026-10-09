@@ -80,8 +80,12 @@ class DesktopAppTest(unittest.TestCase):
         self.assertIn("agentLabel", document)
         self.assertIn('"color": "#2563eb"', document)
         self.assertIn('"color": "#dc2626"', document)
-        self.assertIn("opacity: 0.38", document)
+        self.assertIn("opacity: 0.65", document)
         self.assertIn("Cores dos dias", document)
+        self.assertIn("map.stop()", document)
+        self.assertIn("map.invalidateSize", document)
+        self.assertIn("zoomAnimation: false", document)
+        self.assertIn("map.setView(center, zoom", document)
 
     def test_process_and_format_plan(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
